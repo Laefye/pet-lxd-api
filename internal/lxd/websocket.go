@@ -3,7 +3,6 @@ package lxd
 import (
 	"context"
 	"io"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -16,11 +15,6 @@ func ConnectWebsocket(ctx context.Context, dialer websocket.Dialer, endpoint End
 	wsURL := endpoint.Wss(path)
 	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
 	if err != nil {
-		return nil, err
-	}
-	err = conn.SetReadDeadline(time.Time{})
-	if err != nil {
-		conn.Close()
 		return nil, err
 	}
 	stream := &WebSocketStream{

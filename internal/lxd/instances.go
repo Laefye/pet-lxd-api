@@ -65,3 +65,30 @@ func (r *Rest) GetInstanceState(ctx context.Context, name string) (*GetInstances
 	err := r.Get(ctx, fmt.Sprintf("/1.0/instances/%s/state", name), &instance)
 	return &instance, err
 }
+
+type Exec struct {
+	Command     []string          `json:"command"`
+	WaitForWS   bool              `json:"wait-for-websocket"`
+	Interactive bool              `json:"interactive"`
+	Environment map[string]string `json:"environment,omitempty"`
+}
+
+type ExecMetametadata struct {
+	Fds map[string]string `json:"fds"`
+}
+
+type ExecMetadata struct {
+	BaseMetadata
+	Metadata ExecMetametadata `json:"metadata"`
+}
+
+type ExecInstanceResponse struct {
+	BaseResponse
+	Metadata ExecMetadata `json:"metadata"`
+}
+
+func (r *Rest) ExecInstance(ctx context.Context, name string, exec Exec) (*ExecInstanceResponse, error) {
+	var resp ExecInstanceResponse
+	err := r.Post(ctx, fmt.Sprintf("/1.0/instances/%s/exec", name), exec, &resp)
+	return &resp, err
+}

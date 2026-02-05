@@ -51,30 +51,51 @@ const serverURL = "127.0.0.1:8443"
 func main() {
 	endpoint := lxd.Endpoint(serverURL)
 
-	// api := &lxd.Rest{
-	// 	Client: initHttpClient(),
-	// 	Host:   serverURL,
-	// }
+	api := &lxd.Rest{
+		Client:   initHttpClient(),
+		Endpoint: endpoint,
+	}
+
+	instance, err := api.ExecInstance(context.Background(), "present-hermit", lxd.Exec{
+		Command:   []string{"/bin/df"},
+		WaitForWS: true,
+	})
+	if err != nil {
+		fmt.Printf("Error executing instance command: %v\n", err)
+		return
+	}
+
+	fmt.Printf("ExecInstanceResponse: %+v\n", instance)
 
 	dialer := websocket.Dialer{
 		TLSClientConfig: getTlsConfig(),
 	}
 
-	conn, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, "/1.0/events")
+	stdin, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, "/1.0/operations/"+instance.Metadata.Id+"/websocket?secret="+instance.Metadata.Metadata.Fds["0"])
 	if err != nil {
 		fmt.Printf("Error connecting to WebSocket: %v\n", err)
 		return
 	}
-	defer conn.Conn.Close()
-
-	fmt.Println("Connected to WebSocket, waiting for events...")
+	defer stdin.Close()
+	stdout, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, "/1.0/operations/"+instance.Metadata.Id+"/websocket?secret="+instance.Metadata.Metadata.Fds["1"])
+	if err != nil {
+		fmt.Printf("Error connecting to WebSocket: %v\n", err)
+		return
+	}
+	defer stdout.Close()
+	stderr, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, "/1.0/operations/"+instance.Metadata.Id+"/websocket?secret="+instance.Metadata.Metadata.Fds["2"])
+	if err != nil {
+		fmt.Printf("Error connecting to WebSocket: %v\n", err)
+		return
+	}
+	defer stderr.Close()
 
 	for {
-		message, err := conn.Read()
+		message, err := stdout.Read()
 		if err != nil {
-			fmt.Printf("Error reading from WebSocket: %v\n", err)
+			fmt.Printf("Error reading from stdout WebSocket: %v\n", err)
 			break
 		}
-		fmt.Printf("Received event: %s\n", string(message))
+		fmt.Print(string(message))
 	}
 }
