@@ -10,10 +10,19 @@ type Path struct {
 	Query    url.Values
 }
 
+func escapeSegments(segments []string) []string {
+	escapedSegments := make([]string, len(segments))
+	for i, segment := range segments {
+		escapedSegments[i] = url.PathEscape(segment)
+	}
+	return escapedSegments
+}
+
 func (p Path) String() string {
 	path := ""
-	if len(p.Segments) > 0 {
-		path += "/" + strings.Join(p.Segments, "/")
+	escapedSegments := escapeSegments(p.Segments)
+	if len(escapedSegments) > 0 {
+		path += "/" + strings.Join(escapedSegments, "/")
 	}
 	if len(p.Query) > 0 {
 		path += "?" + p.Query.Encode()
@@ -44,15 +53,39 @@ func (p Path) WithQuery(key, value string) Path {
 	return p
 }
 
-func ParsePath(rawPath string) Path {
+func unescapeSegments(path string) ([]string, error) {
+	escapedSegments := strings.Split(strings.Trim(path, "/"), "/")
+	segments := make([]string, len(escapedSegments))
+	for i, segment := range escapedSegments {
+		unescapedSegment, err := url.PathUnescape(segment)
+		if err != nil {
+			return nil, err
+		}
+		segments[i] = unescapedSegment
+	}
+	return segments, nil
+}
+
+func ParsePath(rawPath string) (*Path, error) {
 	u, err := url.Parse(rawPath)
 	if err != nil {
-		return Path{}
+		return nil, err
 	}
-	segments := strings.Split(strings.Trim(u.Path, "/"), "/")
+	segments, err := unescapeSegments(u.Path)
+	if err != nil {
+		return nil, err
+	}
 	query := url.Values(u.Query())
-	return Path{
+	return &Path{
 		Segments: segments,
 		Query:    query,
+	}, nil
+}
+
+func MustParsePath(rawPath string) Path {
+	path, err := ParsePath(rawPath)
+	if err != nil {
+		panic(err)
 	}
+	return *path
 }

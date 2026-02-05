@@ -8,7 +8,8 @@ import (
 )
 
 type WebSocketStream struct {
-	Conn *websocket.Conn
+	Conn   *websocket.Conn
+	buffer []byte
 }
 
 func ConnectWebsocket(ctx context.Context, dialer websocket.Dialer, endpoint Endpoint, path Path) (*WebSocketStream, error) {
@@ -18,7 +19,8 @@ func ConnectWebsocket(ctx context.Context, dialer websocket.Dialer, endpoint End
 		return nil, err
 	}
 	stream := &WebSocketStream{
-		Conn: conn,
+		Conn:   conn,
+		buffer: make([]byte, 0),
 	}
 	return stream, nil
 }
@@ -36,6 +38,19 @@ func (s *WebSocketStream) ReadMessage() ([]byte, error) {
 		return nil, io.EOF
 	}
 	return message, err
+}
+
+func (s *WebSocketStream) Read(p []byte) (int, error) {
+	if len(s.buffer) == 0 {
+		message, err := s.ReadMessage()
+		if err != nil {
+			return 0, err
+		}
+		s.buffer = message
+	}
+	n := copy(p, s.buffer)
+	s.buffer = s.buffer[n:]
+	return n, nil
 }
 
 func (s *WebSocketStream) Write(message []byte) (int, error) {

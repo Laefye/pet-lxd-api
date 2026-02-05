@@ -79,7 +79,7 @@ var recommendFlags = []string{
 }
 
 func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
-	response, err := api.Request(ctx, http.MethodPost, lxd.ParsePath("/1.0/instances"), &lxd.CreateInstanceRequest{
+	response, err := api.Request(ctx, http.MethodPost, lxd.MustParsePath("/1.0/instances"), &lxd.CreateInstanceRequest{
 		Source: lxd.InstanceSource{
 			Alias: "leafos",
 			Type:  "image",
@@ -94,11 +94,11 @@ func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, instanceCreatingTask, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, lxd.ParsePath(response.Operation).Join("wait"), nil)
+	_, instanceCreatingTask, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, lxd.MustParsePath(response.Operation).Join("wait"), nil)
 	if err != nil {
 		return nil, err
 	}
-	path := lxd.ParsePath(instanceCreatingTask.Resources.Instances[0])
+	path := lxd.MustParsePath(instanceCreatingTask.Resources.Instances[0])
 	return &path, nil
 }
 
@@ -168,21 +168,21 @@ func readFds(ctx context.Context, dialer websocket.Dialer, endpoint lxd.Endpoint
 
 	go func() {
 		defer wg.Done()
-		if err := toStdout("STDOUT", stdout); err != nil {
-			fmt.Printf("Error reading STDOUT: %v\n", err)
-		}
+		io.Copy(os.Stdout, stdout)
+		fmt.Println("STDOUT closed")
+		stdin.Close()
 	}()
 
 	go func() {
 		defer wg.Done()
-		if err := toStdout("STDERR", stderr); err != nil {
-			fmt.Printf("Error reading STDERR: %v\n", err)
-		}
+		io.Copy(os.Stderr, stderr)
+		fmt.Println("STDERR closed")
 	}()
 
 	go func() {
 		defer wg.Done()
 		io.Copy(stdin, os.Stdin)
+		fmt.Println("STDIN closed")
 	}()
 
 	wg.Wait()
@@ -195,7 +195,7 @@ func execAndWaitCommand(ctx context.Context, api *lxd.Rest, dialer websocket.Dia
 		return err
 	}
 	fmt.Printf("Created exec operation at path: %s\n", execResponse.Operation)
-	return readFds(ctx, dialer, endpoint, lxd.ParsePath(execResponse.Operation), execMetadata)
+	return readFds(ctx, dialer, endpoint, lxd.MustParsePath(execResponse.Operation), execMetadata)
 }
 
 func uploadEula(ctx context.Context, api *lxd.Rest, path lxd.Path, filename string) error {
