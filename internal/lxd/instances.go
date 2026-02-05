@@ -35,7 +35,7 @@ type CreateInstanceRequest struct {
 	Devices map[string]Device `json:"devices,omitempty"`
 }
 
-func (r *Rest) CreateInstance(ctx context.Context, req CreateInstanceRequest) (*RestResponse, error) {
+func (r *Rest) CreateInstance(ctx context.Context, req CreateInstanceRequest) (*Response, error) {
 	jsonReq, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func (r *Rest) CreateInstance(ctx context.Context, req CreateInstanceRequest) (*
 	return r.Request(ctx, http.MethodPost, "/1.0/instances", req)
 }
 
-func (r *Rest) GetInstanceState(ctx context.Context, name string) (*RestResponse, error) {
+func (r *Rest) GetInstanceState(ctx context.Context, name string) (*Response, error) {
 	return r.Request(ctx, http.MethodGet, fmt.Sprintf("/1.0/instances/%s/state", name), nil)
 }
 
@@ -56,6 +56,6 @@ type ExecRequest struct {
 	RecordOutput bool              `json:"record-output,omitempty"`
 }
 
-func (r *Rest) ExecInstance(ctx context.Context, name string, exec ExecRequest) (*RestResponse, error) {
+func (r *Rest) ExecInstance(ctx context.Context, name string, exec ExecRequest) (*Response, error) {
 	return r.Request(ctx, http.MethodPost, fmt.Sprintf("/1.0/instances/%s/exec", name), exec)
 }

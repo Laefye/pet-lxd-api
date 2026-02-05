@@ -12,7 +12,7 @@ type Rest struct {
 	Endpoint Endpoint
 }
 
-type RestResponse struct {
+type Response struct {
 	Type       string          `json:"type"`
 	ErrorCode  int             `json:"error_code"`
 	Error      string          `json:"error"`
@@ -20,6 +20,15 @@ type RestResponse struct {
 	StatusCode int             `json:"status_code"`
 	Metadata   json.RawMessage `json:"metadata"`
 	Operation  string          `json:"operation"`
+}
+
+type LxdApiError struct {
+	Code    int
+	Message string
+}
+
+func (e *LxdApiError) Error() string {
+	return e.Message
 }
 
 type Resources struct {
@@ -54,7 +63,7 @@ func (r *Rest) createRequest(ctx context.Context, method, path string, data inte
 	return http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path), nil)
 }
 
-func (r *Rest) Request(ctx context.Context, method, path string, data interface{}) (*RestResponse, error) {
+func (r *Rest) Request(ctx context.Context, method, path string, data interface{}) (*Response, error) {
 	req, err := r.createRequest(ctx, method, path, data)
 	if err != nil {
 		return nil, err
@@ -64,9 +73,15 @@ func (r *Rest) Request(ctx context.Context, method, path string, data interface{
 		return nil, err
 	}
 	defer resp.Body.Close()
-	var out RestResponse
+	var out Response
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, err
+	}
+	if out.ErrorCode != 0 {
+		return &out, &LxdApiError{
+			Code:    out.ErrorCode,
+			Message: out.Error,
+		}
 	}
 	return &out, nil
 }

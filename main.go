@@ -1,17 +1,10 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
-	"fmt"
-	"mcvds/internal/lxd"
 	"net/http"
 	"os"
-	"time"
-
-	"github.com/gorilla/websocket"
 )
 
 type Api struct {
@@ -51,115 +44,115 @@ func initHttpClient() http.Client {
 const serverURL = "127.0.0.1:8443"
 
 func main() {
-	endpoint := lxd.Endpoint(serverURL)
+	// endpoint := lxd.Endpoint(serverURL)
 
-	api := &lxd.Rest{
-		Client:   initHttpClient(),
-		Endpoint: endpoint,
-	}
+	// api := &lxd.Rest{
+	// 	Client:   initHttpClient(),
+	// 	Endpoint: endpoint,
+	// }
 
-	instances := lxd.ParsePath("/1.0/instances").WithProject("test")
+	// instances := lxd.ParsePath("/1.0/instances").WithProject("test")
 
-	instanceCreatingTask, err := api.Request(context.Background(), http.MethodPost, instances.String(), lxd.CreateInstanceRequest{
-		Source: lxd.InstanceSource{
-			Alias: "leafos",
-			Type:  "image",
-		},
-		Type:  lxd.InstanceTypeVM,
-		Start: true,
-	})
-	if err != nil {
-		fmt.Printf("Error creating instance: %v\n", err)
-		return
-	}
+	// instanceCreatingTask, err := api.Request(context.Background(), http.MethodPost, instances.String(), lxd.CreateInstanceRequest{
+	// 	Source: lxd.InstanceSource{
+	// 		Alias: "leafos",
+	// 		Type:  "image",
+	// 	},
+	// 	Type:  lxd.InstanceTypeVM,
+	// 	Start: true,
+	// })
+	// if err != nil {
+	// 	fmt.Printf("Error creating instance: %v\n", err)
+	// 	return
+	// }
 
-	fmt.Printf("CreateInstanceResponse: %+v\n", instanceCreatingTask)
+	// fmt.Printf("CreateInstanceResponse: %+v\n", instanceCreatingTask)
 
-	instanceCreated, err := api.Request(context.Background(), http.MethodGet, lxd.ParsePath(instanceCreatingTask.Operation).Join("wait").String(), nil)
-	if err != nil {
-		fmt.Printf("Error waiting for instance creation: %v\n", err)
-		return
-	}
+	// instanceCreated, err := api.Request(context.Background(), http.MethodGet, lxd.ParsePath(instanceCreatingTask.Operation).Join("wait").String(), nil)
+	// if err != nil {
+	// 	fmt.Printf("Error waiting for instance creation: %v\n", err)
+	// 	return
+	// }
 
-	fmt.Printf("InstanceCreatedResponse: %+v\n", instanceCreated.Metadata)
+	// fmt.Printf("InstanceCreatedResponse: %+v\n", instanceCreated.Metadata)
 
-	metadata := lxd.RestMetadata{}
-	err = json.Unmarshal(instanceCreated.Metadata, &metadata)
-	if err != nil {
-		fmt.Printf("Error unmarshaling instance metadata: %v\n", err)
-		return
-	}
-	path := lxd.ParsePath(metadata.Resources.Instances[0])
+	// metadata := lxd.RestMetadata{}
+	// err = json.Unmarshal(instanceCreated.Metadata, &metadata)
+	// if err != nil {
+	// 	fmt.Printf("Error unmarshaling instance metadata: %v\n", err)
+	// 	return
+	// }
+	// path := lxd.ParsePath(metadata.Resources.Instances[0])
 
-	for {
-		state, err := api.Request(context.Background(), http.MethodGet, path.Join("state").String(), nil)
-		if err != nil {
-			fmt.Printf("Error getting instance state: %v\n", err)
-			return
-		}
-		metadata := lxd.RestMetadata{}
-		err = json.Unmarshal(state.Metadata, &metadata)
-		if err != nil {
-			fmt.Printf("Error unmarshaling instance state metadata: %v\n", err)
-			return
-		}
-		fmt.Printf("InstanceStateResponse: %+v\n", metadata)
-		if metadata.Processes > 0 {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+	// for {
+	// 	state, err := api.Request(context.Background(), http.MethodGet, path.Join("state").String(), nil)
+	// 	if err != nil {
+	// 		fmt.Printf("Error getting instance state: %v\n", err)
+	// 		return
+	// 	}
+	// 	metadata := lxd.RestMetadata{}
+	// 	err = json.Unmarshal(state.Metadata, &metadata)
+	// 	if err != nil {
+	// 		fmt.Printf("Error unmarshaling instance state metadata: %v\n", err)
+	// 		return
+	// 	}
+	// 	fmt.Printf("InstanceStateResponse: %+v\n", metadata)
+	// 	if metadata.Processes > 0 {
+	// 		break
+	// 	}
+	// 	time.Sleep(1 * time.Second)
+	// }
 
-	fmt.Println("Instance is started and ready for exec")
+	// fmt.Println("Instance is started and ready for exec")
 
-	exec, err := api.Request(context.Background(), http.MethodPost, path.Join("exec").String(), lxd.ExecRequest{
-		Command:   []string{"/usr/bin/wget", "https://fill-data.papermc.io/v1/objects/2617fbbe4a9c0642ee5e0176a459b64992c7a308a1773e9bd42ef1d2d7bec25a/paper-1.21.11-105.jar", "-O", "/root/server.jar"},
-		WaitForWS: true,
-	})
-	if err != nil {
-		fmt.Printf("Error executing instance command: %v\n", err)
-		return
-	}
+	// exec, err := api.Request(context.Background(), http.MethodPost, path.Join("exec").String(), lxd.ExecRequest{
+	// 	Command:   []string{"/usr/bin/wget", "https://fill-data.papermc.io/v1/objects/2617fbbe4a9c0642ee5e0176a459b64992c7a308a1773e9bd42ef1d2d7bec25a/paper-1.21.11-105.jar", "-O", "/root/server.jar"},
+	// 	WaitForWS: true,
+	// })
+	// if err != nil {
+	// 	fmt.Printf("Error executing instance command: %v\n", err)
+	// 	return
+	// }
 
-	fmt.Printf("ExecInstanceResponse: %+v\n", exec)
+	// fmt.Printf("ExecInstanceResponse: %+v\n", exec)
 
-	dialer := websocket.Dialer{
-		TLSClientConfig: getTlsConfig(),
-	}
+	// dialer := websocket.Dialer{
+	// 	TLSClientConfig: getTlsConfig(),
+	// }
 
-	execOperation := lxd.ParsePath(exec.Operation)
-	metadata = lxd.RestMetadata{}
-	err = json.Unmarshal(exec.Metadata, &metadata)
-	if err != nil {
-		fmt.Printf("Error unmarshaling exec metadata: %v\n", err)
-		return
-	}
+	// execOperation := lxd.ParsePath(exec.Operation)
+	// metadata = lxd.RestMetadata{}
+	// err = json.Unmarshal(exec.Metadata, &metadata)
+	// if err != nil {
+	// 	fmt.Printf("Error unmarshaling exec metadata: %v\n", err)
+	// 	return
+	// }
 
-	stdin, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, execOperation.Join("websocket").WithSecret(metadata.Metadata.Fds["0"]).String())
-	if err != nil {
-		fmt.Printf("Error connecting to WebSocket: %v\n", err)
-		return
-	}
-	defer stdin.Close()
-	stdout, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, execOperation.Join("websocket").WithSecret(metadata.Metadata.Fds["1"]).String())
-	if err != nil {
-		fmt.Printf("Error connecting to WebSocket: %v\n", err)
-		return
-	}
-	defer stdout.Close()
-	stderr, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, execOperation.Join("websocket").WithSecret(metadata.Metadata.Fds["2"]).String())
-	if err != nil {
-		fmt.Printf("Error connecting to WebSocket: %v\n", err)
-		return
-	}
-	defer stderr.Close()
+	// stdin, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, execOperation.Join("websocket").WithSecret(metadata.Metadata.Fds["0"]).String())
+	// if err != nil {
+	// 	fmt.Printf("Error connecting to WebSocket: %v\n", err)
+	// 	return
+	// }
+	// defer stdin.Close()
+	// stdout, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, execOperation.Join("websocket").WithSecret(metadata.Metadata.Fds["1"]).String())
+	// if err != nil {
+	// 	fmt.Printf("Error connecting to WebSocket: %v\n", err)
+	// 	return
+	// }
+	// defer stdout.Close()
+	// stderr, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, execOperation.Join("websocket").WithSecret(metadata.Metadata.Fds["2"]).String())
+	// if err != nil {
+	// 	fmt.Printf("Error connecting to WebSocket: %v\n", err)
+	// 	return
+	// }
+	// defer stderr.Close()
 
-	for {
-		message, err := stderr.Read()
-		if err != nil {
-			fmt.Printf("Error reading from stdout WebSocket: %v\n", err)
-			break
-		}
-		fmt.Print(string(message))
-	}
+	// for {
+	// 	message, err := stderr.Read()
+	// 	if err != nil {
+	// 		fmt.Printf("Error reading from stdout WebSocket: %v\n", err)
+	// 		break
+	// 	}
+	// 	fmt.Print(string(message))
+	// }
 }
