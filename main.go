@@ -89,7 +89,7 @@ func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
 			Alias: "leafos",
 			Type:  "image",
 		},
-		Type:  lxd.InstanceTypeVM,
+		Type:  lxd.InstanceTypeContainer,
 		Start: true,
 		Config: map[string]string{
 			"limits.cpu":    "2",
