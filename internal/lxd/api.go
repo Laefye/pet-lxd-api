@@ -49,7 +49,7 @@ func (r *Rest) Do(ctx context.Context, method string, path Path, data io.Reader,
 	return resp, nil
 }
 
-func parseResponse(reader io.Reader) (*Response, error) {
+func ParseResponse(reader io.Reader) (*Response, error) {
 	var out Response
 	if err := json.NewDecoder(reader).Decode(&out); err != nil {
 		return nil, err
@@ -59,6 +59,14 @@ func parseResponse(reader io.Reader) (*Response, error) {
 			Code:    out.ErrorCode,
 			Message: out.Error,
 		}
+	}
+	return &out, nil
+}
+
+func ParseMetadata[T any](r *Response) (*T, error) {
+	var out T
+	if err := json.Unmarshal(r.Metadata, &out); err != nil {
+		return nil, err
 	}
 	return &out, nil
 }
@@ -75,7 +83,7 @@ func (r *Rest) Request(ctx context.Context, method string, path Path, data inter
 		return nil, err
 	}
 	defer resp.Body.Close()
-	out, err := parseResponse(resp.Body)
+	out, err := ParseResponse(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -87,11 +95,11 @@ func R[T any](r *Rest, ctx context.Context, method string, path Path, data inter
 	if err != nil {
 		return nil, nil, err
 	}
-	var out T
-	if err := json.Unmarshal(resp.Metadata, &out); err != nil {
-		return nil, nil, err
+	out, err := ParseMetadata[T](resp)
+	if err != nil {
+		return resp, nil, err
 	}
-	return resp, &out, nil
+	return resp, out, nil
 }
 
 func (r *Rest) Upload(ctx context.Context, path Path, reader io.Reader, header http.Header) (*Response, error) {
@@ -100,7 +108,7 @@ func (r *Rest) Upload(ctx context.Context, path Path, reader io.Reader, header h
 		return nil, err
 	}
 	defer resp.Body.Close()
-	out, err := parseResponse(resp.Body)
+	out, err := ParseResponse(resp.Body)
 	if err != nil {
 		return nil, err
 	}

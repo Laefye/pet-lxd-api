@@ -113,7 +113,7 @@ func waitInstanceReady(ctx context.Context, api *lxd.Rest, path lxd.Path) error 
 		if metadata.Processes > 0 {
 			break
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(3 * time.Second)
 	}
 	return nil
 }
@@ -213,6 +213,25 @@ func uploadEula(ctx context.Context, api *lxd.Rest, path lxd.Path, filename stri
 	return nil
 }
 
+func downloadAndUpload(ctx context.Context, api *lxd.Rest, path lxd.Path, url string, filename string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	uploadURL := path.Join("files").WithQuery("path", filename)
+	uploadResp, err := api.Upload(ctx, uploadURL, resp.Body, http.Header{
+		"Content-Type": []string{"application/octet-stream"},
+		"X-LXD-uid":    []string{"1000"},
+		"X-LXD-gid":    []string{"1000"},
+	})
+	if err != nil {
+		return err
+	}
+	log.Printf("Upload response: %+v\n", uploadResp)
+	return nil
+}
+
 func main() {
 	paper := mc.PaperMCApi{
 		BaseUrl: paper,
@@ -251,21 +270,21 @@ func main() {
 		TLSClientConfig: getTlsConfig(),
 	}
 
+	fmt.Println("Executing command to create gamesrv user")
+
 	err = execAndWaitCommand(context.Background(), api, dialer, endpoint, *instancePath, []string{"/usr/sbin/adduser", "gamesrv", "-D"}, nil)
 	if err != nil {
 		panic(err)
 	}
 
-	err = execAndWaitCommand(context.Background(), api, dialer, endpoint, *instancePath, []string{}, &lxd.ExecRequest{
-		Command:   []string{"/usr/bin/wget", builds[0].Downloads["server:default"].URL, "-O", "/home/gamesrv/server.jar"},
-		Cwd:       "/home/gamesrv",
-		User:      1000,
-		Group:     1000,
-		WaitForWS: true,
-	})
+	fmt.Println("Downloading server jar and uploading to instance")
+
+	err = downloadAndUpload(context.Background(), api, *instancePath, builds[0].Downloads["server:default"].URL, "/home/gamesrv/server.jar")
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Println("Uploading EULA")
 
 	err = uploadEula(context.Background(), api, *instancePath, "/home/gamesrv/eula.txt")
 	if err != nil {
