@@ -9,16 +9,36 @@ type Resources struct {
 	Instances []string `json:"instances"`
 }
 
-type SubMetadata struct {
+type ExecSubMetadata struct {
 	Fds map[string]string `json:"fds"`
 }
 
-type RestMetadata struct {
-	Class     string      `json:"class"`
-	Id        string      `json:"id"`
-	Resources Resources   `json:"resources"`
-	Metadata  SubMetadata `json:"metadata"`
-	Processes int         `json:"processes"`
+type BaseMetadata struct {
+	Class     string    `json:"class"`
+	Id        string    `json:"id"`
+	Resources Resources `json:"resources"`
+}
+
+type ExecMetadata struct {
+	BaseMetadata
+	Metadata ExecSubMetadata `json:"metadata"`
+}
+
+type AddressInfo struct {
+	Family  string `json:"family"`
+	Address string `json:"address"`
+	Netmask string `json:"netmask"`
+	Scope   string `json:"scope"`
+}
+
+type NetworkInfo struct {
+	Addresses []AddressInfo `json:"addresses"`
+}
+
+type StateMetadata struct {
+	BaseMetadata
+	Processes int                    `json:"processes"`
+	Network   map[string]NetworkInfo `json:"network"`
 }
 
 const (
@@ -46,11 +66,11 @@ type CreateInstanceRequest struct {
 
 type ExecRequest struct {
 	Command      []string          `json:"command"`
-	WaitForWS    bool              `json:"wait-for-websocket"`
-	Interactive  bool              `json:"interactive"`
+	WaitForWS    bool              `json:"wait-for-websocket,omitempty"`
+	Interactive  bool              `json:"interactive,omitempty"`
 	Environment  map[string]string `json:"environment,omitempty"`
 	RecordOutput bool              `json:"record-output,omitempty"`
 	Cwd          string            `json:"cwd,omitempty"`
-	Group        int               `json:"group"`
-	User         int               `json:"user"`
+	Group        int               `json:"group,omitempty"`
+	User         int               `json:"user,omitempty"`
 }

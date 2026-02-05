@@ -12,6 +12,8 @@ import (
 	"mcvds/internal/mc"
 	"net/http"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,8 +40,9 @@ func getTlsConfig() *tls.Config {
 	rootCAs.AppendCertsFromPEM(serverCert)
 
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      rootCAs,
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            rootCAs,
+		InsecureSkipVerify: true,
 	}
 	return tlsConfig
 }
@@ -53,29 +56,31 @@ func initHttpClient() *http.Client {
 	return client
 }
 
-const serverURL = "127.0.0.1:8443"
+const serverURL = "172.28.218.207:8443"
 
 const paper = "https://fill.papermc.io"
 
+const listenAddr = "172.28.218.207"
+
 var recommendFlags = []string{
-	"-XX:+AlwaysPreTouch",
-	"-XX:+DisableExplicitGC",
-	"-XX:+ParallelRefProcEnabled",
-	"-XX:+PerfDisableSharedMem",
-	"-XX:+UnlockExperimentalVMOptions",
-	"-XX:+UseG1GC",
-	"-XX:G1HeapRegionSize=8M",
-	"-XX:G1HeapWastePercent=5",
-	"-XX:G1MaxNewSizePercent=40",
-	"-XX:G1MixedGCCountTarget=4",
-	"-XX:G1MixedGCLiveThresholdPercent=90",
-	"-XX:G1NewSizePercent=30",
-	"-XX:G1RSetUpdatingPauseTimePercent=5",
-	"-XX:G1ReservePercent=20",
-	"-XX:InitiatingHeapOccupancyPercent=15",
-	"-XX:MaxGCPauseMillis=200",
-	"-XX:MaxTenuringThreshold=1",
-	"-XX:SurvivorRatio=30",
+	// "-XX:+AlwaysPreTouch",
+	// "-XX:+DisableExplicitGC",
+	// "-XX:+ParallelRefProcEnabled",
+	// "-XX:+PerfDisableSharedMem",
+	// "-XX:+UnlockExperimentalVMOptions",
+	// "-XX:+UseG1GC",
+	// "-XX:G1HeapRegionSize=8M",
+	// "-XX:G1HeapWastePercent=5",
+	// "-XX:G1MaxNewSizePercent=40",
+	// "-XX:G1MixedGCCountTarget=4",
+	// "-XX:G1MixedGCLiveThresholdPercent=90",
+	// "-XX:G1NewSizePercent=30",
+	// "-XX:G1RSetUpdatingPauseTimePercent=5",
+	// "-XX:G1ReservePercent=20",
+	// "-XX:InitiatingHeapOccupancyPercent=15",
+	// "-XX:MaxGCPauseMillis=200",
+	// "-XX:MaxTenuringThreshold=1",
+	// "-XX:SurvivorRatio=30",
 }
 
 func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
@@ -94,7 +99,7 @@ func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, instanceCreatingTask, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, lxd.MustParsePath(response.Operation).Join("wait"), nil)
+	_, instanceCreatingTask, err := lxd.R[lxd.BaseMetadata](api, ctx, http.MethodGet, lxd.MustParsePath(response.Operation).Join("wait"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +110,7 @@ func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
 func waitInstanceReady(ctx context.Context, api *lxd.Rest, path lxd.Path) error {
 	path = path.Join("state")
 	for {
-		_, metadata, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, path, nil)
+		_, metadata, err := lxd.R[lxd.StateMetadata](api, ctx, http.MethodGet, path, nil)
 		if err != nil {
 			return err
 		}
@@ -118,14 +123,14 @@ func waitInstanceReady(ctx context.Context, api *lxd.Rest, path lxd.Path) error 
 	return nil
 }
 
-func executeCommand(ctx context.Context, api *lxd.Rest, path lxd.Path, command []string, request *lxd.ExecRequest) (*lxd.Response, *lxd.RestMetadata, error) {
+func executeCommand(ctx context.Context, api *lxd.Rest, path lxd.Path, command []string, request *lxd.ExecRequest) (*lxd.Response, *lxd.ExecMetadata, error) {
 	if request == nil {
 		request = &lxd.ExecRequest{
 			Command:   command,
 			WaitForWS: true,
 		}
 	}
-	response, metadata, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodPost, path.Join("exec"), request)
+	response, metadata, err := lxd.R[lxd.ExecMetadata](api, ctx, http.MethodPost, path.Join("exec"), request)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -146,7 +151,7 @@ func toStdout(name string, reader *lxd.WebSocketStream) error {
 	return nil
 }
 
-func readFds(ctx context.Context, dialer websocket.Dialer, endpoint lxd.Endpoint, operation lxd.Path, metadata *lxd.RestMetadata) error {
+func readFds(ctx context.Context, dialer websocket.Dialer, endpoint lxd.Endpoint, operation lxd.Path, metadata *lxd.ExecMetadata) error {
 	stdin, err := lxd.ConnectWebsocket(ctx, dialer, endpoint, operation.Join("websocket").WithSecret(metadata.Metadata.Fds["0"]))
 	if err != nil {
 		return err
@@ -232,6 +237,82 @@ func downloadAndUpload(ctx context.Context, api *lxd.Rest, path lxd.Path, url st
 	return nil
 }
 
+func addPortForwarding(ctx context.Context, api *lxd.Rest, path lxd.Path, listenAddr string, listenPort int, connectAddr string, connectPort int) error {
+	_, forwardAddresses, err := lxd.R[[]string](api, ctx, http.MethodGet, path.Join("forwards"), nil)
+	if err != nil {
+		return err
+	}
+	contains := slices.ContainsFunc(*forwardAddresses, func(addr string) bool {
+		return lxd.MustParsePath(addr).Last(0) == listenAddr
+	})
+	if !contains {
+		_, err = api.Request(ctx, http.MethodPost, path.Join("forwards"), &lxd.ForwardAddress{
+			ListenAddress: listenAddr,
+			Ports: []lxd.ForwardPort{
+				{
+					ListenPort: strconv.Itoa(listenPort),
+					TargetPort: strconv.Itoa(connectPort),
+					TargetAddr: connectAddr,
+					Protocol:   lxd.ProtocolTCP,
+				},
+			},
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	} else {
+		_, forwardAddress, err := lxd.R[lxd.ForwardAddress](api, ctx, http.MethodGet, path.Join("forwards").Join(listenAddr), nil)
+		if err != nil {
+			return err
+		}
+		containsPort := slices.ContainsFunc(forwardAddress.Ports, func(port lxd.ForwardPort) bool {
+			return port.ListenPort == strconv.Itoa(listenPort) && port.TargetAddr == connectAddr && port.TargetPort == strconv.Itoa(connectPort) && port.Protocol == lxd.ProtocolTCP
+		})
+		if !containsPort {
+			forwardAddress.Ports = append(forwardAddress.Ports, lxd.ForwardPort{
+				ListenPort: strconv.Itoa(listenPort),
+				TargetPort: strconv.Itoa(connectPort),
+				TargetAddr: connectAddr,
+				Protocol:   lxd.ProtocolTCP,
+			})
+			_, err = api.Request(ctx, http.MethodPut, path.Join("forwards").Join(listenAddr), forwardAddress)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func getState(ctx context.Context, api *lxd.Rest, path lxd.Path) (*lxd.StateMetadata, error) {
+	_, metadata, err := lxd.R[lxd.StateMetadata](api, ctx, http.MethodGet, path.Join("state"), nil)
+	if err != nil {
+		return nil, err
+	}
+	return metadata, nil
+}
+
+func getFirstInetAddr(state *lxd.StateMetadata) (string, error) {
+	for _, network := range state.Network {
+		for _, addr := range network.Addresses {
+			if addr.Family == "inet" && addr.Scope == "global" {
+				return addr.Address, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no inet address found")
+}
+
+func getPort(addr string) int {
+	parts := strings.Split(addr, ".")
+	intPort, err := strconv.Atoi(parts[len(parts)-1])
+	if err != nil {
+		return 0
+	}
+	return intPort + 50000
+}
+
 func main() {
 	paper := mc.PaperMCApi{
 		BaseUrl: paper,
@@ -291,17 +372,34 @@ func main() {
 		panic(err)
 	}
 
+	state, err := getState(context.Background(), api, *instancePath)
+	if err != nil {
+		panic(err)
+	}
+
+	ipAddr, err := getFirstInetAddr(state)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Instance IP address: %s\n", ipAddr)
+
+	fmt.Println("Adding port forwarding")
+
+	err = addPortForwarding(context.Background(), api, lxd.MustParsePath("/1.0/networks/lxdbr0"), listenAddr, getPort(ipAddr), ipAddr, 25565)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Port forwarding added: %s:%d -> %s:25565\n", listenAddr, getPort(ipAddr), ipAddr)
+
 	java := fmt.Sprintf("java %s -jar server.jar nogui", strings.Join(recommendFlags, " "))
 
 	fmt.Printf("Starting server with command: %s\n", java)
 
 	suWithJava := []string{"/bin/su", "-", "gamesrv", "-c", java}
 
-	err = execAndWaitCommand(context.Background(), api, dialer, endpoint, *instancePath, []string{}, &lxd.ExecRequest{
-		Command:   suWithJava,
-		WaitForWS: true,
-		Cwd:       "/home/gamesrv",
-	})
+	err = execAndWaitCommand(context.Background(), api, dialer, endpoint, *instancePath, suWithJava, nil)
 	if err != nil {
 		panic(err)
 	}

@@ -53,6 +53,10 @@ func (p Path) WithQuery(key, value string) Path {
 	return p
 }
 
+func (p Path) Last(i int) string {
+	return p.Segments[len(p.Segments)-i-1]
+}
+
 func unescapeSegments(path string) ([]string, error) {
 	escapedSegments := strings.Split(strings.Trim(path, "/"), "/")
 	segments := make([]string, len(escapedSegments))
