@@ -52,7 +52,10 @@ func main() {
 	endpoint := lxd.Endpoint(serverURL)
 
 	api := &lxd.Rest{
-		Client:   initHttpClient(),
+		Client: initHttpClient(),
+		Dialer: &websocket.Dialer{
+			TLSClientConfig: getTlsConfig(),
+		},
 		Endpoint: endpoint,
 	}
 
@@ -64,25 +67,22 @@ func main() {
 		panic(err)
 	}
 
-	dialer := websocket.Dialer{
-		TLSClientConfig: getTlsConfig(),
-	}
-	stdin, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["0"]))
+	stdin, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["0"]))
 	if err != nil {
 		panic(err)
 	}
-	stdout, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["1"]))
+	stdout, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["1"]))
 	if err != nil {
 		panic(err)
 	}
 	defer stdout.Close()
-	stderr, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["2"]))
+	stderr, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["2"]))
 	if err != nil {
 		panic(err)
 	}
 	defer stderr.Close()
 
-	stdin.Write([]byte("root:password\n"))
+	stdin.Write([]byte("root:1\n"))
 	stdin.Close()
 
 	message, err := stdout.ReadMessage()

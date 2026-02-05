@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
 type Rest struct {
 	Client   *http.Client
+	Dialer   *websocket.Dialer
 	Endpoint Endpoint
 }
 

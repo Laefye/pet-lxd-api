@@ -12,17 +12,13 @@ type WebSocketStream struct {
 	buffer []byte
 }
 
-func ConnectWebsocket(ctx context.Context, dialer websocket.Dialer, endpoint Endpoint, path Path) (*WebSocketStream, error) {
-	wsURL := endpoint.Wss(path.String())
-	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
+func (r *Rest) WebSocket(ctx context.Context, path Path) (*WebSocketStream, error) {
+	wsURL := r.Endpoint.Wss(path.String())
+	conn, _, err := r.Dialer.DialContext(ctx, wsURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	stream := &WebSocketStream{
-		Conn:   conn,
-		buffer: make([]byte, 0),
-	}
-	return stream, nil
+	return &WebSocketStream{Conn: conn, buffer: make([]byte, 0)}, nil
 }
 
 func (s *WebSocketStream) Close() error {
