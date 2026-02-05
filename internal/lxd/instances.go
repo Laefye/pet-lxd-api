@@ -1,12 +1,5 @@
 package lxd
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-)
-
 type InstanceSource struct {
 	Alias string `json:"alias"`
 	Type  string `json:"type"`
@@ -51,19 +44,6 @@ type CreateInstanceRequest struct {
 	Devices map[string]Device `json:"devices,omitempty"`
 }
 
-func (r *Rest) CreateInstance(ctx context.Context, req CreateInstanceRequest) (*Response, error) {
-	jsonReq, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("CreateInstanceRequest: %s\n", string(jsonReq))
-	return r.Request(ctx, http.MethodPost, "/1.0/instances", req)
-}
-
-func (r *Rest) GetInstanceState(ctx context.Context, name string) (*Response, error) {
-	return r.Request(ctx, http.MethodGet, fmt.Sprintf("/1.0/instances/%s/state", name), nil)
-}
-
 type ExecRequest struct {
 	Command      []string          `json:"command"`
 	WaitForWS    bool              `json:"wait-for-websocket"`
@@ -73,8 +53,4 @@ type ExecRequest struct {
 	Cwd          string            `json:"cwd,omitempty"`
 	Group        int               `json:"group"`
 	User         int               `json:"user"`
-}
-
-func (r *Rest) ExecInstance(ctx context.Context, name string, exec ExecRequest) (*Response, error) {
-	return r.Request(ctx, http.MethodPost, fmt.Sprintf("/1.0/instances/%s/exec", name), exec)
 }

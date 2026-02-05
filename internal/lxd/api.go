@@ -32,8 +32,8 @@ func (e *LxdApiError) Error() string {
 	return e.Message
 }
 
-func (r *Rest) Do(ctx context.Context, method, path string, data io.Reader, header http.Header) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path), data)
+func (r *Rest) Do(ctx context.Context, method string, path Path, data io.Reader, header http.Header) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path.String()), data)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func parseResponse(reader io.Reader) (*Response, error) {
 	return &out, nil
 }
 
-func (r *Rest) Request(ctx context.Context, method, path string, data interface{}) (*Response, error) {
+func (r *Rest) Request(ctx context.Context, method string, path Path, data interface{}) (*Response, error) {
 	req, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (r *Rest) Request(ctx context.Context, method, path string, data interface{
 	return out, nil
 }
 
-func R[T any](r *Rest, ctx context.Context, method, path string, data interface{}) (*Response, *T, error) {
+func R[T any](r *Rest, ctx context.Context, method string, path Path, data interface{}) (*Response, *T, error) {
 	resp, err := r.Request(ctx, method, path, data)
 	if err != nil {
 		return nil, nil, err
@@ -94,7 +94,7 @@ func R[T any](r *Rest, ctx context.Context, method, path string, data interface{
 	return resp, &out, nil
 }
 
-func (r *Rest) Upload(ctx context.Context, path string, reader io.Reader, header http.Header) (*Response, error) {
+func (r *Rest) Upload(ctx context.Context, path Path, reader io.Reader, header http.Header) (*Response, error) {
 	resp, err := r.Do(ctx, http.MethodPost, path, reader, header)
 	if err != nil {
 		return nil, err

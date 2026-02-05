@@ -79,7 +79,7 @@ var recommendFlags = []string{
 }
 
 func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
-	response, err := api.Request(ctx, http.MethodPost, lxd.ParsePath("/1.0/instances").String(), &lxd.CreateInstanceRequest{
+	response, err := api.Request(ctx, http.MethodPost, lxd.ParsePath("/1.0/instances"), &lxd.CreateInstanceRequest{
 		Source: lxd.InstanceSource{
 			Alias: "leafos",
 			Type:  "image",
@@ -94,7 +94,7 @@ func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, instanceCreatingTask, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, response.Operation+"/wait", nil)
+	_, instanceCreatingTask, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, lxd.ParsePath(response.Operation).Join("wait"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
 func waitInstanceReady(ctx context.Context, api *lxd.Rest, path lxd.Path) error {
 	path = path.Join("state")
 	for {
-		_, metadata, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, path.String(), nil)
+		_, metadata, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, path, nil)
 		if err != nil {
 			return err
 		}
@@ -125,7 +125,7 @@ func executeCommand(ctx context.Context, api *lxd.Rest, path lxd.Path, command [
 			WaitForWS: true,
 		}
 	}
-	response, metadata, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodPost, path.Join("exec").String(), request)
+	response, metadata, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodPost, path.Join("exec"), request)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -134,7 +134,7 @@ func executeCommand(ctx context.Context, api *lxd.Rest, path lxd.Path, command [
 
 func toStdout(name string, reader *lxd.WebSocketStream) error {
 	for {
-		bytes, err := reader.Read()
+		bytes, err := reader.ReadMessage()
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -147,17 +147,17 @@ func toStdout(name string, reader *lxd.WebSocketStream) error {
 }
 
 func readFds(ctx context.Context, dialer websocket.Dialer, endpoint lxd.Endpoint, operation lxd.Path, metadata *lxd.RestMetadata) error {
-	stdin, err := lxd.ConnectWebsocket(ctx, dialer, endpoint, operation.Join("websocket").WithSecret(metadata.Metadata.Fds["0"]).String())
+	stdin, err := lxd.ConnectWebsocket(ctx, dialer, endpoint, operation.Join("websocket").WithSecret(metadata.Metadata.Fds["0"]))
 	if err != nil {
 		return err
 	}
 	defer stdin.Close()
-	stdout, err := lxd.ConnectWebsocket(ctx, dialer, endpoint, operation.Join("websocket").WithSecret(metadata.Metadata.Fds["1"]).String())
+	stdout, err := lxd.ConnectWebsocket(ctx, dialer, endpoint, operation.Join("websocket").WithSecret(metadata.Metadata.Fds["1"]))
 	if err != nil {
 		return err
 	}
 	defer stdout.Close()
-	stderr, err := lxd.ConnectWebsocket(ctx, dialer, endpoint, operation.Join("websocket").WithSecret(metadata.Metadata.Fds["2"]).String())
+	stderr, err := lxd.ConnectWebsocket(ctx, dialer, endpoint, operation.Join("websocket").WithSecret(metadata.Metadata.Fds["2"]))
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func execAndWaitCommand(ctx context.Context, api *lxd.Rest, dialer websocket.Dia
 }
 
 func uploadEula(ctx context.Context, api *lxd.Rest, path lxd.Path, filename string) error {
-	url := path.Join("files").WithQuery("path", filename).String()
+	url := path.Join("files").WithQuery("path", filename)
 	buffer := bytes.NewBufferString("eula=true")
 	resp, err := api.Upload(ctx, url, buffer, http.Header{
 		"Content-Type": []string{"application/octet-stream"},
