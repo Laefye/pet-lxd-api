@@ -2,9 +2,9 @@ package lxd
 
 import (
 	"context"
-	"fmt"
+	"net/http"
 )
 
 func (r *Rest) Wait(ctx context.Context, id string) (*RestResponse, error) {
-	return r.Get(ctx, fmt.Sprintf("/1.0/operations/%s/wait", id))
+	return r.Request(ctx, http.MethodGet, id+"/wait", nil)
 }

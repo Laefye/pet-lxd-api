@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 )
 
 type InstanceSource struct {
@@ -40,20 +41,21 @@ func (r *Rest) CreateInstance(ctx context.Context, req CreateInstanceRequest) (*
 		return nil, err
 	}
 	fmt.Printf("CreateInstanceRequest: %s\n", string(jsonReq))
-	return r.Post(ctx, "/1.0/instances", req)
+	return r.Request(ctx, http.MethodPost, "/1.0/instances", req)
 }
 
 func (r *Rest) GetInstanceState(ctx context.Context, name string) (*RestResponse, error) {
-	return r.Get(ctx, fmt.Sprintf("/1.0/instances/%s/state", name))
+	return r.Request(ctx, http.MethodGet, fmt.Sprintf("/1.0/instances/%s/state", name), nil)
 }
 
 type ExecRequest struct {
-	Command     []string          `json:"command"`
-	WaitForWS   bool              `json:"wait-for-websocket"`
-	Interactive bool              `json:"interactive"`
-	Environment map[string]string `json:"environment,omitempty"`
+	Command      []string          `json:"command"`
+	WaitForWS    bool              `json:"wait-for-websocket"`
+	Interactive  bool              `json:"interactive"`
+	Environment  map[string]string `json:"environment,omitempty"`
+	RecordOutput bool              `json:"record-output,omitempty"`
 }
 
 func (r *Rest) ExecInstance(ctx context.Context, name string, exec ExecRequest) (*RestResponse, error) {
-	return r.Post(ctx, fmt.Sprintf("/1.0/instances/%s/exec", name), exec)
+	return r.Request(ctx, http.MethodPost, fmt.Sprintf("/1.0/instances/%s/exec", name), exec)
 }

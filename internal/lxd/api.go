@@ -38,34 +38,27 @@ type RestMetadata struct {
 	Processes int       `json:"processes"`
 }
 
-func (r *Rest) Get(ctx context.Context, path string) (*RestResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", r.Endpoint.Https(path), nil)
-	if err != nil {
-		return nil, err
+func (r *Rest) createRequest(ctx context.Context, method, path string, data interface{}) (*http.Request, error) {
+	if data != nil {
+		bodyJson, err := json.Marshal(data)
+		if err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path), bytes.NewReader(bodyJson))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		return req, nil
 	}
-	resp, err := r.Client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	var out RestResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path), nil)
 }
 
-func (r *Rest) Post(ctx context.Context, path string, data interface{}) (*RestResponse, error) {
-	bodyJson, err := json.Marshal(data)
+func (r *Rest) Request(ctx context.Context, method, path string, data interface{}) (*RestResponse, error) {
+	req, err := r.createRequest(ctx, method, path, data)
 	if err != nil {
 		return nil, err
 	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", r.Endpoint.Https(path), bytes.NewReader(bodyJson))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
 	resp, err := r.Client.Do(req)
 	if err != nil {
 		return nil, err

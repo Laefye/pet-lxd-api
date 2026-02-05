@@ -57,7 +57,11 @@ func main() {
 		Endpoint: endpoint,
 	}
 
-	instanceCreatingTask, err := api.CreateInstance(context.Background(), lxd.CreateInstanceRequest{
+	query := lxd.Query{
+		Project: "test",
+	}
+
+	instanceCreatingTask, err := api.Request(context.Background(), http.MethodPost, "/1.0/instances"+query.String(), lxd.CreateInstanceRequest{
 		Source: lxd.InstanceSource{
 			Alias: "leafos",
 			Type:  "image",
@@ -70,7 +74,9 @@ func main() {
 		return
 	}
 
-	instanceCreated, err := api.Get(context.Background(), instanceCreatingTask.Operation+"/wait")
+	fmt.Printf("CreateInstanceResponse: %+v\n", instanceCreatingTask)
+
+	instanceCreated, err := api.Request(context.Background(), http.MethodGet, instanceCreatingTask.Operation+"/wait", nil)
 	if err != nil {
 		fmt.Printf("Error waiting for instance creation: %v\n", err)
 		return
@@ -78,12 +84,15 @@ func main() {
 
 	fmt.Printf("InstanceCreatedResponse: %+v\n", instanceCreated.Metadata)
 
+	path := lxd.ParsePath(instanceCreated.Metadata.Resources.Instances[0])
+
 	for {
-		state, err := api.Get(context.Background(), instanceCreated.Metadata.Resources.Instances[0]+"/state")
+		state, err := api.Request(context.Background(), http.MethodGet, path.Join("state").String(), nil)
 		if err != nil {
 			fmt.Printf("Error getting instance state: %v\n", err)
 			return
 		}
+		fmt.Printf("InstanceStateResponse: %+v\n", state.Metadata)
 		if state.Metadata.Processes > 0 {
 			break
 		}
@@ -92,7 +101,7 @@ func main() {
 
 	fmt.Println("Instance is started and ready for exec")
 
-	exec, err := api.Post(context.Background(), instanceCreated.Metadata.Resources.Instances[0]+"/exec", lxd.ExecRequest{
+	exec, err := api.Request(context.Background(), http.MethodPost, path.Join("exec").String(), lxd.ExecRequest{
 		Command:   []string{"/usr/bin/wget", "https://fill-data.papermc.io/v1/objects/2617fbbe4a9c0642ee5e0176a459b64992c7a308a1773e9bd42ef1d2d7bec25a/paper-1.21.11-105.jar", "-O", "/root/server.jar"},
 		WaitForWS: true,
 	})
