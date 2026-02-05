@@ -8,7 +8,7 @@ import (
 type Path struct {
 	Version  string
 	Segments []string
-	Query    Query
+	Query    url.Values
 }
 
 func (p Path) String() string {
@@ -16,7 +16,9 @@ func (p Path) String() string {
 	if len(p.Segments) > 0 {
 		path += "/" + strings.Join(p.Segments, "/")
 	}
-	path += p.Query.String()
+	if len(p.Query) > 0 {
+		path += "?" + p.Query.Encode()
+	}
 	return path
 }
 
@@ -26,6 +28,22 @@ func (p Path) Join(segment string) Path {
 		Segments: append(p.Segments, segment),
 		Query:    p.Query,
 	}
+}
+
+func (p Path) WithProject(project string) Path {
+	return p.WithQuery("project", project)
+}
+
+func (p Path) WithSecret(secret string) Path {
+	return p.WithQuery("secret", secret)
+}
+
+func (p Path) WithQuery(key, value string) Path {
+	if p.Query == nil {
+		p.Query = url.Values{}
+	}
+	p.Query.Set(key, value)
+	return p
 }
 
 func ParsePath(rawPath string) Path {
@@ -39,7 +57,7 @@ func ParsePath(rawPath string) Path {
 		version = segments[0]
 		segments = segments[1:]
 	}
-	query := ParseQuery(u.RawQuery)
+	query := url.Values(u.Query())
 	return Path{
 		Version:  version,
 		Segments: segments,

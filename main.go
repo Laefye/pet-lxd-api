@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"mcvds/internal/lxd"
 	"net/http"
@@ -57,11 +58,9 @@ func main() {
 		Endpoint: endpoint,
 	}
 
-	query := lxd.Query{
-		Project: "test",
-	}
+	instances := lxd.ParsePath("/1.0/instances").WithProject("test")
 
-	instanceCreatingTask, err := api.Request(context.Background(), http.MethodPost, "/1.0/instances"+query.String(), lxd.CreateInstanceRequest{
+	instanceCreatingTask, err := api.Request(context.Background(), http.MethodPost, instances.String(), lxd.CreateInstanceRequest{
 		Source: lxd.InstanceSource{
 			Alias: "leafos",
 			Type:  "image",
@@ -76,7 +75,7 @@ func main() {
 
 	fmt.Printf("CreateInstanceResponse: %+v\n", instanceCreatingTask)
 
-	instanceCreated, err := api.Request(context.Background(), http.MethodGet, instanceCreatingTask.Operation+"/wait", nil)
+	instanceCreated, err := api.Request(context.Background(), http.MethodGet, lxd.ParsePath(instanceCreatingTask.Operation).Join("wait").String(), nil)
 	if err != nil {
 		fmt.Printf("Error waiting for instance creation: %v\n", err)
 		return
@@ -84,7 +83,13 @@ func main() {
 
 	fmt.Printf("InstanceCreatedResponse: %+v\n", instanceCreated.Metadata)
 
-	path := lxd.ParsePath(instanceCreated.Metadata.Resources.Instances[0])
+	metadata := lxd.RestMetadata{}
+	err = json.Unmarshal(instanceCreated.Metadata, &metadata)
+	if err != nil {
+		fmt.Printf("Error unmarshaling instance metadata: %v\n", err)
+		return
+	}
+	path := lxd.ParsePath(metadata.Resources.Instances[0])
 
 	for {
 		state, err := api.Request(context.Background(), http.MethodGet, path.Join("state").String(), nil)
@@ -92,8 +97,14 @@ func main() {
 			fmt.Printf("Error getting instance state: %v\n", err)
 			return
 		}
-		fmt.Printf("InstanceStateResponse: %+v\n", state.Metadata)
-		if state.Metadata.Processes > 0 {
+		metadata := lxd.RestMetadata{}
+		err = json.Unmarshal(state.Metadata, &metadata)
+		if err != nil {
+			fmt.Printf("Error unmarshaling instance state metadata: %v\n", err)
+			return
+		}
+		fmt.Printf("InstanceStateResponse: %+v\n", metadata)
+		if metadata.Processes > 0 {
 			break
 		}
 		time.Sleep(1 * time.Second)
@@ -116,19 +127,27 @@ func main() {
 		TLSClientConfig: getTlsConfig(),
 	}
 
-	stdin, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, exec.Operation+"/websocket?secret="+exec.Metadata.Metadata.Fds["0"])
+	execOperation := lxd.ParsePath(exec.Operation)
+	metadata = lxd.RestMetadata{}
+	err = json.Unmarshal(exec.Metadata, &metadata)
+	if err != nil {
+		fmt.Printf("Error unmarshaling exec metadata: %v\n", err)
+		return
+	}
+
+	stdin, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, execOperation.Join("websocket").WithSecret(metadata.Metadata.Fds["0"]).String())
 	if err != nil {
 		fmt.Printf("Error connecting to WebSocket: %v\n", err)
 		return
 	}
 	defer stdin.Close()
-	stdout, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, exec.Operation+"/websocket?secret="+exec.Metadata.Metadata.Fds["1"])
+	stdout, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, execOperation.Join("websocket").WithSecret(metadata.Metadata.Fds["1"]).String())
 	if err != nil {
 		fmt.Printf("Error connecting to WebSocket: %v\n", err)
 		return
 	}
 	defer stdout.Close()
-	stderr, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, exec.Operation+"/websocket?secret="+exec.Metadata.Metadata.Fds["2"])
+	stderr, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, execOperation.Join("websocket").WithSecret(metadata.Metadata.Fds["2"]).String())
 	if err != nil {
 		fmt.Printf("Error connecting to WebSocket: %v\n", err)
 		return

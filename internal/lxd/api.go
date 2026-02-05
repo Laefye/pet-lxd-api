@@ -13,13 +13,13 @@ type Rest struct {
 }
 
 type RestResponse struct {
-	Type       string        `json:"type"`
-	ErrorCode  int           `json:"error_code"`
-	Error      string        `json:"error"`
-	Status     string        `json:"status"`
-	StatusCode int           `json:"status_code"`
-	Metadata   *RestMetadata `json:"metadata"`
-	Operation  string        `json:"operation"`
+	Type       string          `json:"type"`
+	ErrorCode  int             `json:"error_code"`
+	Error      string          `json:"error"`
+	Status     string          `json:"status"`
+	StatusCode int             `json:"status_code"`
+	Metadata   json.RawMessage `json:"metadata"`
+	Operation  string          `json:"operation"`
 }
 
 type Resources struct {
