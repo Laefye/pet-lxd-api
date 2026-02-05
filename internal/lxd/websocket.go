@@ -38,6 +38,6 @@ func (s *WebSocketStream) Read() ([]byte, error) {
 	return message, err
 }
 
-func (s *WebSocketStream) Write(message []byte) error {
-	return s.Conn.WriteMessage(websocket.BinaryMessage, message)
+func (s *WebSocketStream) Write(message []byte) (int, error) {
+	return len(message), s.Conn.WriteMessage(websocket.BinaryMessage, message)
 }

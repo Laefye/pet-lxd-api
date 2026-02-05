@@ -54,6 +54,9 @@ type ExecRequest struct {
 	Interactive  bool              `json:"interactive"`
 	Environment  map[string]string `json:"environment,omitempty"`
 	RecordOutput bool              `json:"record-output,omitempty"`
+	Cwd          string            `json:"cwd,omitempty"`
+	Group        int               `json:"group"`
+	User         int               `json:"user"`
 }
 
 func (r *Rest) ExecInstance(ctx context.Context, name string, exec ExecRequest) (*Response, error) {

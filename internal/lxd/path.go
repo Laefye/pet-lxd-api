@@ -6,13 +6,12 @@ import (
 )
 
 type Path struct {
-	Version  string
 	Segments []string
 	Query    url.Values
 }
 
 func (p Path) String() string {
-	path := "/" + p.Version
+	path := ""
 	if len(p.Segments) > 0 {
 		path += "/" + strings.Join(p.Segments, "/")
 	}
@@ -24,7 +23,6 @@ func (p Path) String() string {
 
 func (p Path) Join(segment string) Path {
 	return Path{
-		Version:  p.Version,
 		Segments: append(p.Segments, segment),
 		Query:    p.Query,
 	}
@@ -52,14 +50,8 @@ func ParsePath(rawPath string) Path {
 		return Path{}
 	}
 	segments := strings.Split(strings.Trim(u.Path, "/"), "/")
-	version := ""
-	if len(segments) > 0 {
-		version = segments[0]
-		segments = segments[1:]
-	}
 	query := url.Values(u.Query())
 	return Path{
-		Version:  version,
 		Segments: segments,
 		Query:    query,
 	}

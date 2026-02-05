@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 )
 
 type Rest struct {
-	Client   http.Client
+	Client   *http.Client
 	Endpoint Endpoint
 }
 
@@ -35,46 +36,38 @@ type Resources struct {
 	Instances []string `json:"instances"`
 }
 
-type Metadata struct {
+type SubMetadata struct {
 	Fds map[string]string `json:"fds"`
 }
 
 type RestMetadata struct {
-	Class     string    `json:"class"`
-	Id        string    `json:"id"`
-	Resources Resources `json:"resources"`
-	Metadata  Metadata  `json:"metadata"`
-	Processes int       `json:"processes"`
+	Class     string      `json:"class"`
+	Id        string      `json:"id"`
+	Resources Resources   `json:"resources"`
+	Metadata  SubMetadata `json:"metadata"`
+	Processes int         `json:"processes"`
 }
 
-func (r *Rest) createRequest(ctx context.Context, method, path string, data interface{}) (*http.Request, error) {
-	if data != nil {
-		bodyJson, err := json.Marshal(data)
-		if err != nil {
-			return nil, err
-		}
-		req, err := http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path), bytes.NewReader(bodyJson))
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Content-Type", "application/json")
-		return req, nil
-	}
-	return http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path), nil)
-}
-
-func (r *Rest) Request(ctx context.Context, method, path string, data interface{}) (*Response, error) {
-	req, err := r.createRequest(ctx, method, path, data)
+func (r *Rest) Do(ctx context.Context, method, path string, data io.Reader, header http.Header) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path), data)
 	if err != nil {
 		return nil, err
+	}
+	for key, values := range header {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
 	}
 	resp, err := r.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	return resp, nil
+}
+
+func parseResponse(reader io.Reader) (*Response, error) {
 	var out Response
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(reader).Decode(&out); err != nil {
 		return nil, err
 	}
 	if out.ErrorCode != 0 {
@@ -84,4 +77,36 @@ func (r *Rest) Request(ctx context.Context, method, path string, data interface{
 		}
 	}
 	return &out, nil
+}
+
+func (r *Rest) Request(ctx context.Context, method, path string, data interface{}) (*Response, error) {
+	req, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := r.Do(ctx, method, path, bytes.NewReader(req), http.Header{
+		"Content-Type": []string{"application/json"},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	out, err := parseResponse(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *Rest) Upload(ctx context.Context, path string, reader io.Reader, header http.Header) (*Response, error) {
+	resp, err := r.Do(ctx, http.MethodPost, path, reader, header)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	out, err := parseResponse(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
