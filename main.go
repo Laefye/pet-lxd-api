@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"io"
+	"mcvds/internal/lxd"
 	"net/http"
 	"os"
+
+	"github.com/gorilla/websocket"
 )
 
 type Api struct {
-	client http.Client
+	client *http.Client
 	url    string
 }
 
@@ -36,45 +41,35 @@ func getTlsConfig() *tls.Config {
 const serverURL = "172.28.218.207:8443"
 
 func main() {
-	// endpoint := lxd.Endpoint(serverURL)
+	endpoint := lxd.Endpoint(serverURL)
 
-	// api := &lxd.Rest{
-	// 	Client: initHttpClient(),
-	// 	Dialer: &websocket.Dialer{
-	// 		TLSClientConfig: getTlsConfig(),
-	// 	},
-	// 	Endpoint: endpoint,
-	// }
+	api := &lxd.Rest{
+		Client: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: getTlsConfig(),
+			},
+		},
+		Dialer: &websocket.Dialer{
+			TLSClientConfig: getTlsConfig(),
+		},
+		Endpoint: endpoint,
+	}
 
-	// res, exec, err := lxd.R[lxd.ExecMetadata](api, context.Background(), http.MethodPost, lxd.MustParsePath("/1.0/instances/wow/exec"), lxd.ExecRequest{
-	// 	Command:   []string{"/usr/sbin/chpasswd", "gamesrv"},
-	// 	WaitForWS: true,
-	// })
-	// if err != nil {
-	// 	panic(err)
-	// }
+	fd, err := api.Exec(context.Background(), lxd.MustParsePath("/1.0/instances/wow/exec"), lxd.ExecRequest{
+		Command:   []string{"/usr/sbin/chpasswd"},
+		WaitForWS: true,
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer fd.Close()
 
-	// stdin, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["0"]))
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// stdout, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["1"]))
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer stdout.Close()
-	// stderr, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["2"]))
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer stderr.Close()
+	fd.Stdin.Write([]byte("owo:password\n"))
+	fd.Stdin.Close()
 
-	// stdin.Write([]byte("root:1\n"))
-	// stdin.Close()
-
-	// message, err := stdout.ReadMessage()
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// println("STDOUT:", string(message))
+	out, err := fd.Stdout.ReadMessage()
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+	println(string(out))
 }

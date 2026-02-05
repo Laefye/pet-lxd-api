@@ -1,5 +1,11 @@
 package lxd
 
+import (
+	"context"
+	"errors"
+	"net/http"
+)
+
 type InstanceSource struct {
 	Alias string `json:"alias"`
 	Type  string `json:"type"`
@@ -73,4 +79,53 @@ type ExecRequest struct {
 	Cwd          string            `json:"cwd,omitempty"`
 	Group        int               `json:"group,omitempty"`
 	User         int               `json:"user,omitempty"`
+}
+
+type Fd struct {
+	Stdin  *WebSocketStream
+	Stdout *WebSocketStream
+	Stderr *WebSocketStream
+}
+
+var ErrMissingWebSocketFlag = errors.New("wait-for-websocket must be true")
+
+func (r *Rest) Exec(ctx context.Context, path Path, req ExecRequest) (*Fd, error) {
+	if req.WaitForWS == false {
+		return nil, ErrMissingWebSocketFlag
+	}
+	res, execMetadata, err := R[ExecMetadata](r, ctx, http.MethodPost, path, req)
+	if err != nil {
+		return nil, err
+	}
+	operationPath, err := ParsePath(res.Operation)
+	if err != nil {
+		return nil, err
+	}
+	wsPath := operationPath.Join("websocket")
+	stdin, err := r.WebSocket(ctx, wsPath.WithSecret(execMetadata.Metadata.Fds["0"]))
+	if err != nil {
+		return nil, err
+	}
+	stdout, err := r.WebSocket(ctx, wsPath.WithSecret(execMetadata.Metadata.Fds["1"]))
+	if err != nil {
+		stdin.Close()
+		return nil, err
+	}
+	stderr, err := r.WebSocket(ctx, wsPath.WithSecret(execMetadata.Metadata.Fds["2"]))
+	if err != nil {
+		stdin.Close()
+		stdout.Close()
+		return nil, err
+	}
+	return &Fd{
+		Stdin:  stdin,
+		Stdout: stdout,
+		Stderr: stderr,
+	}, nil
+}
+
+func (f *Fd) Close() {
+	f.Stdout.Close()
+	f.Stderr.Close()
+	f.Stdin.Close()
 }
