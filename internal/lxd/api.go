@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
 
@@ -13,52 +12,68 @@ type Rest struct {
 	Endpoint Endpoint
 }
 
-type BaseResponse struct {
-	Type       string `json:"type"`
-	ErrorCode  int    `json:"error_code"`
-	Error      string `json:"error"`
-	Status     string `json:"status"`
-	StatusCode int    `json:"status_code"`
+type RestResponse struct {
+	Type       string        `json:"type"`
+	ErrorCode  int           `json:"error_code"`
+	Error      string        `json:"error"`
+	Status     string        `json:"status"`
+	StatusCode int           `json:"status_code"`
+	Metadata   *RestMetadata `json:"metadata"`
+	Operation  string        `json:"operation"`
 }
 
 type Resources struct {
 	Instances []string `json:"instances"`
 }
 
-type BaseMetadata struct {
+type Metadata struct {
+	Fds map[string]string `json:"fds"`
+}
+
+type RestMetadata struct {
 	Class     string    `json:"class"`
 	Id        string    `json:"id"`
 	Resources Resources `json:"resources"`
+	Metadata  Metadata  `json:"metadata"`
+	Processes int       `json:"processes"`
 }
 
-func (r *Rest) Get(ctx context.Context, path string, out interface{}) error {
-	fmt.Println("GET", r.Endpoint.Https(path))
+func (r *Rest) Get(ctx context.Context, path string) (*RestResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", r.Endpoint.Https(path), nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	resp, err := r.Client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	defer resp.Body.Close()
+	var out RestResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
-func (r *Rest) Post(ctx context.Context, path string, data interface{}, out interface{}) error {
+func (r *Rest) Post(ctx context.Context, path string, data interface{}) (*RestResponse, error) {
 	bodyJson, err := json.Marshal(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", r.Endpoint.Https(path), bytes.NewReader(bodyJson))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := r.Client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
-	return json.NewDecoder(resp.Body).Decode(out)
+	var out RestResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
