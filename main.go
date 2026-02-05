@@ -8,6 +8,9 @@ import (
 	"mcvds/internal/lxd"
 	"net/http"
 	"os"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type Api struct {
@@ -54,53 +57,81 @@ func main() {
 		Endpoint: endpoint,
 	}
 
-	d, err := api.Get(context.Background(), "/1.0/instances/present-hermit")
+	instanceCreatingTask, err := api.CreateInstance(context.Background(), lxd.CreateInstanceRequest{
+		Source: lxd.InstanceSource{
+			Alias: "leafos",
+			Type:  "image",
+		},
+		Type:  lxd.InstanceTypeVM,
+		Start: true,
+	})
 	if err != nil {
-		fmt.Printf("Error getting instance state: %v\n", err)
+		fmt.Printf("Error creating instance: %v\n", err)
 		return
 	}
-	fmt.Printf("GetInstanceStateResponse: %+v\n", d.Metadata)
 
-	// exec, err := api.ExecInstance(context.Background(), "present-hermit", lxd.ExecRequest{
-	// 	Command:   []string{"/bin/df"},
-	// 	WaitForWS: true,
-	// })
-	// if err != nil {
-	// 	fmt.Printf("Error executing instance command: %v\n", err)
-	// 	return
-	// }
+	instanceCreated, err := api.Get(context.Background(), instanceCreatingTask.Operation+"/wait")
+	if err != nil {
+		fmt.Printf("Error waiting for instance creation: %v\n", err)
+		return
+	}
 
-	// fmt.Printf("ExecInstanceResponse: %+v\n", exec)
+	fmt.Printf("InstanceCreatedResponse: %+v\n", instanceCreated.Metadata)
 
-	// dialer := websocket.Dialer{
-	// 	TLSClientConfig: getTlsConfig(),
-	// }
+	for {
+		state, err := api.Get(context.Background(), instanceCreated.Metadata.Resources.Instances[0]+"/state")
+		if err != nil {
+			fmt.Printf("Error getting instance state: %v\n", err)
+			return
+		}
+		if state.Metadata.Processes > 0 {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 
-	// stdin, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, exec.Operation+"/websocket?secret="+exec.Metadata.Metadata.Fds["0"])
-	// if err != nil {
-	// 	fmt.Printf("Error connecting to WebSocket: %v\n", err)
-	// 	return
-	// }
-	// defer stdin.Close()
-	// stdout, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, exec.Operation+"/websocket?secret="+exec.Metadata.Metadata.Fds["1"])
-	// if err != nil {
-	// 	fmt.Printf("Error connecting to WebSocket: %v\n", err)
-	// 	return
-	// }
-	// defer stdout.Close()
-	// stderr, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, exec.Operation+"/websocket?secret="+exec.Metadata.Metadata.Fds["2"])
-	// if err != nil {
-	// 	fmt.Printf("Error connecting to WebSocket: %v\n", err)
-	// 	return
-	// }
-	// defer stderr.Close()
+	fmt.Println("Instance is started and ready for exec")
 
-	// for {
-	// 	message, err := stdout.Read()
-	// 	if err != nil {
-	// 		fmt.Printf("Error reading from stdout WebSocket: %v\n", err)
-	// 		break
-	// 	}
-	// 	fmt.Print(string(message))
-	// }
+	exec, err := api.Post(context.Background(), instanceCreated.Metadata.Resources.Instances[0]+"/exec", lxd.ExecRequest{
+		Command:   []string{"/usr/bin/wget", "https://fill-data.papermc.io/v1/objects/2617fbbe4a9c0642ee5e0176a459b64992c7a308a1773e9bd42ef1d2d7bec25a/paper-1.21.11-105.jar", "-O", "/root/server.jar"},
+		WaitForWS: true,
+	})
+	if err != nil {
+		fmt.Printf("Error executing instance command: %v\n", err)
+		return
+	}
+
+	fmt.Printf("ExecInstanceResponse: %+v\n", exec)
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: getTlsConfig(),
+	}
+
+	stdin, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, exec.Operation+"/websocket?secret="+exec.Metadata.Metadata.Fds["0"])
+	if err != nil {
+		fmt.Printf("Error connecting to WebSocket: %v\n", err)
+		return
+	}
+	defer stdin.Close()
+	stdout, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, exec.Operation+"/websocket?secret="+exec.Metadata.Metadata.Fds["1"])
+	if err != nil {
+		fmt.Printf("Error connecting to WebSocket: %v\n", err)
+		return
+	}
+	defer stdout.Close()
+	stderr, err := lxd.ConnectWebsocket(context.Background(), dialer, endpoint, exec.Operation+"/websocket?secret="+exec.Metadata.Metadata.Fds["2"])
+	if err != nil {
+		fmt.Printf("Error connecting to WebSocket: %v\n", err)
+		return
+	}
+	defer stderr.Close()
+
+	for {
+		message, err := stderr.Read()
+		if err != nil {
+			fmt.Printf("Error reading from stdout WebSocket: %v\n", err)
+			break
+		}
+		fmt.Print(string(message))
+	}
 }
