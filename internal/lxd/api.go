@@ -32,22 +32,6 @@ func (e *LxdApiError) Error() string {
 	return e.Message
 }
 
-type Resources struct {
-	Instances []string `json:"instances"`
-}
-
-type SubMetadata struct {
-	Fds map[string]string `json:"fds"`
-}
-
-type RestMetadata struct {
-	Class     string      `json:"class"`
-	Id        string      `json:"id"`
-	Resources Resources   `json:"resources"`
-	Metadata  SubMetadata `json:"metadata"`
-	Processes int         `json:"processes"`
-}
-
 func (r *Rest) Do(ctx context.Context, method, path string, data io.Reader, header http.Header) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path), data)
 	if err != nil {
@@ -96,6 +80,18 @@ func (r *Rest) Request(ctx context.Context, method, path string, data interface{
 		return nil, err
 	}
 	return out, nil
+}
+
+func R[T any](r *Rest, ctx context.Context, method, path string, data interface{}) (*Response, *T, error) {
+	resp, err := r.Request(ctx, method, path, data)
+	if err != nil {
+		return nil, nil, err
+	}
+	var out T
+	if err := json.Unmarshal(resp.Metadata, &out); err != nil {
+		return nil, nil, err
+	}
+	return resp, &out, nil
 }
 
 func (r *Rest) Upload(ctx context.Context, path string, reader io.Reader, header http.Header) (*Response, error) {

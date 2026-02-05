@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -95,12 +94,8 @@ func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
 	if err != nil {
 		return nil, err
 	}
-	response, err = api.Request(ctx, http.MethodGet, lxd.ParsePath(response.Operation).Join("wait").String(), nil)
+	_, instanceCreatingTask, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, response.Operation+"/wait", nil)
 	if err != nil {
-		return nil, err
-	}
-	var instanceCreatingTask lxd.RestMetadata
-	if err := json.Unmarshal(response.Metadata, &instanceCreatingTask); err != nil {
 		return nil, err
 	}
 	path := lxd.ParsePath(instanceCreatingTask.Resources.Instances[0])
@@ -110,12 +105,8 @@ func createInstance(ctx context.Context, api *lxd.Rest) (*lxd.Path, error) {
 func waitInstanceReady(ctx context.Context, api *lxd.Rest, path lxd.Path) error {
 	path = path.Join("state")
 	for {
-		state, err := api.Request(ctx, http.MethodGet, path.String(), nil)
+		_, metadata, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodGet, path.String(), nil)
 		if err != nil {
-			return err
-		}
-		var metadata lxd.RestMetadata
-		if err := json.Unmarshal(state.Metadata, &metadata); err != nil {
 			return err
 		}
 		fmt.Printf("InstanceStateResponse: %+v\n", metadata)
@@ -134,15 +125,11 @@ func executeCommand(ctx context.Context, api *lxd.Rest, path lxd.Path, command [
 			WaitForWS: true,
 		}
 	}
-	response, err := api.Request(ctx, http.MethodPost, path.Join("exec").String(), *request)
+	response, metadata, err := lxd.R[lxd.RestMetadata](api, ctx, http.MethodPost, path.Join("exec").String(), request)
 	if err != nil {
 		return nil, nil, err
 	}
-	var metadata lxd.RestMetadata
-	if err := json.Unmarshal(response.Metadata, &metadata); err != nil {
-		return nil, nil, err
-	}
-	return response, &metadata, nil
+	return response, metadata, nil
 }
 
 func toStdout(name string, reader *lxd.WebSocketStream) error {

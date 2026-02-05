@@ -12,6 +12,22 @@ type InstanceSource struct {
 	Type  string `json:"type"`
 }
 
+type Resources struct {
+	Instances []string `json:"instances"`
+}
+
+type SubMetadata struct {
+	Fds map[string]string `json:"fds"`
+}
+
+type RestMetadata struct {
+	Class     string      `json:"class"`
+	Id        string      `json:"id"`
+	Resources Resources   `json:"resources"`
+	Metadata  SubMetadata `json:"metadata"`
+	Processes int         `json:"processes"`
+}
+
 const (
 	InstanceTypeContainer = "container"
 	InstanceTypeVM        = "virtual-machine"
