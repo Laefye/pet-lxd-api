@@ -1,14 +1,10 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"mcvds/internal/lxd"
 	"net/http"
 	"os"
-
-	"github.com/gorilla/websocket"
 )
 
 type Api struct {
@@ -37,57 +33,48 @@ func getTlsConfig() *tls.Config {
 	return tlsConfig
 }
 
-func initHttpClient() *http.Client {
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: getTlsConfig(),
-		},
-	}
-	return client
-}
-
 const serverURL = "172.28.218.207:8443"
 
 func main() {
-	endpoint := lxd.Endpoint(serverURL)
+	// endpoint := lxd.Endpoint(serverURL)
 
-	api := &lxd.Rest{
-		Client: initHttpClient(),
-		Dialer: &websocket.Dialer{
-			TLSClientConfig: getTlsConfig(),
-		},
-		Endpoint: endpoint,
-	}
+	// api := &lxd.Rest{
+	// 	Client: initHttpClient(),
+	// 	Dialer: &websocket.Dialer{
+	// 		TLSClientConfig: getTlsConfig(),
+	// 	},
+	// 	Endpoint: endpoint,
+	// }
 
-	res, exec, err := lxd.R[lxd.ExecMetadata](api, context.Background(), http.MethodPost, lxd.MustParsePath("/1.0/instances/wow/exec"), lxd.ExecRequest{
-		Command:   []string{"/usr/sbin/chpasswd", "gamesrv"},
-		WaitForWS: true,
-	})
-	if err != nil {
-		panic(err)
-	}
+	// res, exec, err := lxd.R[lxd.ExecMetadata](api, context.Background(), http.MethodPost, lxd.MustParsePath("/1.0/instances/wow/exec"), lxd.ExecRequest{
+	// 	Command:   []string{"/usr/sbin/chpasswd", "gamesrv"},
+	// 	WaitForWS: true,
+	// })
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	stdin, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["0"]))
-	if err != nil {
-		panic(err)
-	}
-	stdout, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["1"]))
-	if err != nil {
-		panic(err)
-	}
-	defer stdout.Close()
-	stderr, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["2"]))
-	if err != nil {
-		panic(err)
-	}
-	defer stderr.Close()
+	// stdin, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["0"]))
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// stdout, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["1"]))
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer stdout.Close()
+	// stderr, err := api.WebSocket(context.Background(), lxd.MustParsePath(res.Operation).Join("websocket").WithSecret(exec.Metadata.Fds["2"]))
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer stderr.Close()
 
-	stdin.Write([]byte("root:1\n"))
-	stdin.Close()
+	// stdin.Write([]byte("root:1\n"))
+	// stdin.Close()
 
-	message, err := stdout.ReadMessage()
-	if err != nil {
-		panic(err)
-	}
-	println("STDOUT:", string(message))
+	// message, err := stdout.ReadMessage()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// println("STDOUT:", string(message))
 }
