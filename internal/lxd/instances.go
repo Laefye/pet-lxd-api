@@ -2,6 +2,7 @@ package lxd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
 
@@ -74,7 +75,7 @@ type InstanceCreationRequest struct {
 	Devices map[string]device `json:"devices,omitempty"`
 }
 
-type execRequest struct {
+type ExecRequest struct {
 	Command      []string          `json:"command"`
 	WaitForWS    bool              `json:"wait-for-websocket,omitempty"`
 	Interactive  bool              `json:"interactive,omitempty"`
@@ -117,12 +118,21 @@ func (r *Rest) CreateInstance(ctx context.Context, req InstanceCreationRequest) 
 	return &Instance{rest: r, path: *instancePath}, nil
 }
 
+func (r *Rest) GetInstance(ctx context.Context, name string) (*Instance, error) {
+	path := r.base.Join("instances").Join(name)
+	_, _, err := request[resourcedMetadata](r, ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &Instance{rest: r, path: path}, nil
+}
+
 type State struct {
 	Status    string
 	Processes int
 }
 
-func (i *Instance) State(ctx context.Context) (*State, error) {
+func (i *Instance) GetState(ctx context.Context) (*State, error) {
 	_, metadata, err := request[stateMetadata](i.rest, ctx, http.MethodGet, i.path.Join("state"), nil)
 	if err != nil {
 		return nil, err
@@ -131,4 +141,25 @@ func (i *Instance) State(ctx context.Context) (*State, error) {
 		Status:    metadata.Status,
 		Processes: metadata.Processes,
 	}, nil
+}
+
+func (i *Instance) Exec(ctx context.Context, req ExecRequest) (WebSockets, error) {
+	res, metadata, err := request[execMetadata](i.rest, ctx, http.MethodPost, i.path.Join("exec"), req)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(string(res.Metadata))
+	websocketPath, err := ParsePath(res.Operation)
+	if err != nil {
+		return nil, err
+	}
+	streams := make(WebSockets)
+	for name, path := range metadata.Metadata.Fds {
+		stream, err := i.rest.webSocket(ctx, websocketPath.Join("websocket").withQuery("secret", path))
+		if err != nil {
+			return nil, err
+		}
+		streams[name] = stream
+	}
+	return streams, nil
 }

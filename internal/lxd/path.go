@@ -37,10 +37,6 @@ func (p Path) Join(segment string) Path {
 	}
 }
 
-func (p Path) WithProject(project string) Path {
-	return p.withQuery("project", project)
-}
-
 func (p Path) withQuery(key, value string) Path {
 	if p.Query == nil {
 		p.Query = url.Values{}

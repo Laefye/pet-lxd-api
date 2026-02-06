@@ -8,7 +8,6 @@ import (
 	"mcvds/internal/lxd"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -54,24 +53,31 @@ func main() {
 		},
 	)
 
-	instance, err := api.CreateInstance(context.Background(), lxd.InstanceCreationRequest{
-		Source: lxd.InstanceSource{Type: "image", Alias: "leafos"},
-		Start:  true,
-		Type:   lxd.InstanceTypeVM,
+	instance, err := api.GetInstance(context.Background(), "actual-mongrele")
+	if err != nil {
+		panic("Could not get instance: " + err.Error())
+	}
+	state, err := instance.GetState(context.Background())
+	if err != nil {
+		panic("Could not get instance state: " + err.Error())
+	}
+	fmt.Printf("Instance state: %s, processes: %d\n", state.Status, state.Processes)
+	websockets, err := instance.Exec(context.Background(), lxd.ExecRequest{
+		Command:   []string{"ls", "/"},
+		WaitForWS: true,
 	})
 	if err != nil {
-		panic(err)
+		panic("Could not execute command: " + err.Error())
 	}
+	defer websockets.Close()
 	for {
-		time.Sleep(5 * time.Second)
-		state, err := instance.State(context.Background())
+		message, err := websockets["1"].ReadMessage()
 		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("Instance state: %+v\n", state)
-		if state.Processes > 0 {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				panic("Websocket closed unexpectedly: " + err.Error())
+			}
 			break
 		}
+		fmt.Printf("Received message: %s\n", string(message))
 	}
-	fmt.Printf("Created instance at path: %+v\n", instance)
 }
