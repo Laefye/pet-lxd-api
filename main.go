@@ -53,7 +53,7 @@ func main() {
 		},
 	)
 
-	instance, err := api.GetInstance(context.Background(), "actual-mongrele")
+	instance, err := api.Instance(context.Background(), "actual-mongrele")
 	if err != nil {
 		panic("Could not get instance: " + err.Error())
 	}

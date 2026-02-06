@@ -2,7 +2,6 @@ package lxd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 )
 
@@ -118,12 +117,8 @@ func (r *Rest) CreateInstance(ctx context.Context, req InstanceCreationRequest) 
 	return &Instance{rest: r, path: *instancePath}, nil
 }
 
-func (r *Rest) GetInstance(ctx context.Context, name string) (*Instance, error) {
+func (r *Rest) Instance(ctx context.Context, name string) (*Instance, error) {
 	path := r.base.Join("instances").Join(name)
-	_, _, err := request[resourcedMetadata](r, ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
 	return &Instance{rest: r, path: path}, nil
 }
 
@@ -148,7 +143,6 @@ func (i *Instance) Exec(ctx context.Context, req ExecRequest) (WebSockets, error
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(res.Metadata))
 	websocketPath, err := ParsePath(res.Operation)
 	if err != nil {
 		return nil, err
