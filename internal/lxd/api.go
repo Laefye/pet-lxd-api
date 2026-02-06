@@ -11,12 +11,24 @@ import (
 )
 
 type Rest struct {
-	Client   *http.Client
-	Dialer   *websocket.Dialer
-	Endpoint Endpoint
+	Client *http.Client
+	Dialer *websocket.Dialer
+	base   Path
+	Host   string
 }
 
-type Response struct {
+func NewRest(host string, client *http.Client, dialer *websocket.Dialer) *Rest {
+	return &Rest{
+		Client: client,
+		Dialer: dialer,
+		Host:   host,
+		base: Path{
+			Segments: []string{"1.0"},
+		},
+	}
+}
+
+type response struct {
 	Type       string          `json:"type"`
 	ErrorCode  int             `json:"error_code"`
 	Error      string          `json:"error"`
@@ -35,8 +47,12 @@ func (e *LxdApiError) Error() string {
 	return e.Message
 }
 
-func (r *Rest) Do(ctx context.Context, method string, path Path, data io.Reader, header http.Header) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, r.Endpoint.Https(path.String()), data)
+func (r *Rest) httpsPath(path Path) string {
+	return "https://" + string(r.Host) + path.String()
+}
+
+func (r *Rest) do(ctx context.Context, method string, path Path, data io.Reader, header http.Header) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, r.httpsPath(path), data)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +68,8 @@ func (r *Rest) Do(ctx context.Context, method string, path Path, data io.Reader,
 	return resp, nil
 }
 
-func ParseResponse(reader io.Reader) (*Response, error) {
-	var out Response
+func parseResponse(reader io.Reader) (*response, error) {
+	var out response
 	if err := json.NewDecoder(reader).Decode(&out); err != nil {
 		return nil, err
 	}
@@ -66,7 +82,7 @@ func ParseResponse(reader io.Reader) (*Response, error) {
 	return &out, nil
 }
 
-func ParseMetadata[T any](r *Response) (*T, error) {
+func parseMetadata[T any](r *response) (*T, error) {
 	var out T
 	if err := json.Unmarshal(r.Metadata, &out); err != nil {
 		return nil, err
@@ -74,44 +90,44 @@ func ParseMetadata[T any](r *Response) (*T, error) {
 	return &out, nil
 }
 
-func (r *Rest) Request(ctx context.Context, method string, path Path, data interface{}) (*Response, error) {
+func (r *Rest) request(ctx context.Context, method string, path Path, data interface{}) (*response, error) {
 	req, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := r.Do(ctx, method, path, bytes.NewReader(req), http.Header{
+	resp, err := r.do(ctx, method, path, bytes.NewReader(req), http.Header{
 		"Content-Type": []string{"application/json"},
 	})
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	out, err := ParseResponse(resp.Body)
+	out, err := parseResponse(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func R[T any](r *Rest, ctx context.Context, method string, path Path, data interface{}) (*Response, *T, error) {
-	resp, err := r.Request(ctx, method, path, data)
+func request[T any](r *Rest, ctx context.Context, method string, path Path, data interface{}) (*response, *T, error) {
+	resp, err := r.request(ctx, method, path, data)
 	if err != nil {
 		return nil, nil, err
 	}
-	out, err := ParseMetadata[T](resp)
+	out, err := parseMetadata[T](resp)
 	if err != nil {
 		return resp, nil, err
 	}
 	return resp, out, nil
 }
 
-func (r *Rest) Upload(ctx context.Context, path Path, reader io.Reader, header http.Header) (*Response, error) {
-	resp, err := r.Do(ctx, http.MethodPost, path, reader, header)
+func (r *Rest) upload(ctx context.Context, path Path, reader io.Reader, header http.Header) (*response, error) {
+	resp, err := r.do(ctx, http.MethodPost, path, reader, header)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	out, err := ParseResponse(resp.Body)
+	out, err := parseResponse(resp.Body)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,6 @@ package lxd
 
 import (
 	"context"
-	"errors"
 	"net/http"
 )
 
@@ -11,40 +10,45 @@ type InstanceSource struct {
 	Type  string `json:"type"`
 }
 
-type Resources struct {
+type resources struct {
 	Instances []string `json:"instances"`
 }
 
-type ExecSubMetadata struct {
+type execSubMetadata struct {
 	Fds map[string]string `json:"fds"`
 }
 
-type BaseMetadata struct {
-	Class     string    `json:"class"`
-	Id        string    `json:"id"`
-	Resources Resources `json:"resources"`
+type baseMetadata struct {
+	Class string `json:"class"`
+	Id    string `json:"id"`
 }
 
-type ExecMetadata struct {
-	BaseMetadata
-	Metadata ExecSubMetadata `json:"metadata"`
+type execMetadata struct {
+	baseMetadata
+	Metadata execSubMetadata `json:"metadata"`
 }
 
-type AddressInfo struct {
+type resourcedMetadata struct {
+	baseMetadata
+	Resources resources `json:"resources"`
+}
+
+type addressInfo struct {
 	Family  string `json:"family"`
 	Address string `json:"address"`
 	Netmask string `json:"netmask"`
 	Scope   string `json:"scope"`
 }
 
-type NetworkInfo struct {
-	Addresses []AddressInfo `json:"addresses"`
+type networkInfo struct {
+	Addresses []addressInfo `json:"addresses"`
 }
 
-type StateMetadata struct {
-	BaseMetadata
+type stateMetadata struct {
+	baseMetadata
+	Status    string                 `json:"status"`
 	Processes int                    `json:"processes"`
-	Network   map[string]NetworkInfo `json:"network"`
+	Network   map[string]networkInfo `json:"network"`
 }
 
 const (
@@ -52,7 +56,7 @@ const (
 	InstanceTypeVM        = "virtual-machine"
 )
 
-type Device struct {
+type device struct {
 	Type   string `json:"type"`
 	Size   string `json:"size,omitempty"`
 	Source string `json:"source,omitempty"`
@@ -61,16 +65,16 @@ type Device struct {
 	IoBus  string `json:"io.bus,omitempty"`
 }
 
-type CreateInstanceRequest struct {
-	Name    *string           `json:"name,omitempty"`
+type InstanceCreationRequest struct {
+	Name    string            `json:"name,omitempty"`
 	Source  InstanceSource    `json:"source"`
 	Start   bool              `json:"start"`
 	Type    string            `json:"type,omitempty"`
 	Config  map[string]string `json:"config,omitempty"`
-	Devices map[string]Device `json:"devices,omitempty"`
+	Devices map[string]device `json:"devices,omitempty"`
 }
 
-type ExecRequest struct {
+type execRequest struct {
 	Command      []string          `json:"command"`
 	WaitForWS    bool              `json:"wait-for-websocket,omitempty"`
 	Interactive  bool              `json:"interactive,omitempty"`
@@ -81,19 +85,20 @@ type ExecRequest struct {
 	User         int               `json:"user,omitempty"`
 }
 
-type Fd struct {
-	Stdin  *WebSocketStream
-	Stdout *WebSocketStream
-	Stderr *WebSocketStream
+type InstanceCreateArgs struct {
+	Name   string
+	Source InstanceSource
+	Start  bool
+	Type   string
 }
 
-var ErrMissingWebSocketFlag = errors.New("wait-for-websocket must be true")
+type Instance struct {
+	rest *Rest
+	path Path
+}
 
-func (r *Rest) Exec(ctx context.Context, path Path, req ExecRequest) (*Fd, error) {
-	if req.WaitForWS == false {
-		return nil, ErrMissingWebSocketFlag
-	}
-	res, execMetadata, err := R[ExecMetadata](r, ctx, http.MethodPost, path, req)
+func (r *Rest) CreateInstance(ctx context.Context, req InstanceCreationRequest) (*Instance, error) {
+	res, _, err := request[resourcedMetadata](r, ctx, http.MethodPost, r.base.Join("instances"), req)
 	if err != nil {
 		return nil, err
 	}
@@ -101,31 +106,29 @@ func (r *Rest) Exec(ctx context.Context, path Path, req ExecRequest) (*Fd, error
 	if err != nil {
 		return nil, err
 	}
-	wsPath := operationPath.Join("websocket")
-	stdin, err := r.WebSocket(ctx, wsPath.WithSecret(execMetadata.Metadata.Fds["0"]))
+	res, metadata, err := request[resourcedMetadata](r, ctx, http.MethodGet, operationPath.Join("wait"), nil)
 	if err != nil {
 		return nil, err
 	}
-	stdout, err := r.WebSocket(ctx, wsPath.WithSecret(execMetadata.Metadata.Fds["1"]))
+	instancePath, err := ParsePath(metadata.Resources.Instances[0])
 	if err != nil {
-		stdin.Close()
 		return nil, err
 	}
-	stderr, err := r.WebSocket(ctx, wsPath.WithSecret(execMetadata.Metadata.Fds["2"]))
-	if err != nil {
-		stdin.Close()
-		stdout.Close()
-		return nil, err
-	}
-	return &Fd{
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-	}, nil
+	return &Instance{rest: r, path: *instancePath}, nil
 }
 
-func (f *Fd) Close() {
-	f.Stdout.Close()
-	f.Stderr.Close()
-	f.Stdin.Close()
+type State struct {
+	Status    string
+	Processes int
+}
+
+func (i *Instance) State(ctx context.Context) (*State, error) {
+	_, metadata, err := request[stateMetadata](i.rest, ctx, http.MethodGet, i.path.Join("state"), nil)
+	if err != nil {
+		return nil, err
+	}
+	return &State{
+		Status:    metadata.Status,
+		Processes: metadata.Processes,
+	}, nil
 }

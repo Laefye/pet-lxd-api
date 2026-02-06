@@ -38,14 +38,10 @@ func (p Path) Join(segment string) Path {
 }
 
 func (p Path) WithProject(project string) Path {
-	return p.WithQuery("project", project)
+	return p.withQuery("project", project)
 }
 
-func (p Path) WithSecret(secret string) Path {
-	return p.WithQuery("secret", secret)
-}
-
-func (p Path) WithQuery(key, value string) Path {
+func (p Path) withQuery(key, value string) Path {
 	if p.Query == nil {
 		p.Query = url.Values{}
 	}

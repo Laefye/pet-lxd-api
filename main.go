@@ -4,10 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"io"
+	"fmt"
 	"mcvds/internal/lxd"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -41,35 +42,36 @@ func getTlsConfig() *tls.Config {
 const serverURL = "172.28.218.207:8443"
 
 func main() {
-	endpoint := lxd.Endpoint(serverURL)
-
-	api := &lxd.Rest{
-		Client: &http.Client{
+	api := lxd.NewRest(
+		serverURL,
+		&http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: getTlsConfig(),
 			},
 		},
-		Dialer: &websocket.Dialer{
+		&websocket.Dialer{
 			TLSClientConfig: getTlsConfig(),
 		},
-		Endpoint: endpoint,
-	}
+	)
 
-	fd, err := api.Exec(context.Background(), lxd.MustParsePath("/1.0/instances/wow/exec"), lxd.ExecRequest{
-		Command:   []string{"/usr/sbin/chpasswd"},
-		WaitForWS: true,
+	instance, err := api.CreateInstance(context.Background(), lxd.InstanceCreationRequest{
+		Source: lxd.InstanceSource{Type: "image", Alias: "leafos"},
+		Start:  true,
+		Type:   lxd.InstanceTypeVM,
 	})
 	if err != nil {
 		panic(err)
 	}
-	defer fd.Close()
-
-	fd.Stdin.Write([]byte("owo:password\n"))
-	fd.Stdin.Close()
-
-	out, err := fd.Stdout.ReadMessage()
-	if err != nil && err != io.EOF {
-		panic(err)
+	for {
+		time.Sleep(5 * time.Second)
+		state, err := instance.State(context.Background())
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Instance state: %+v\n", state)
+		if state.Processes > 0 {
+			break
+		}
 	}
-	println(string(out))
+	fmt.Printf("Created instance at path: %+v\n", instance)
 }
