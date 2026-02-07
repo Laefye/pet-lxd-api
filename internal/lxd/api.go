@@ -105,7 +105,7 @@ func (r *Rest) request(ctx context.Context, method string, path Path, data inter
 	if err != nil {
 		return nil, err
 	}
-	res, err := r.upload(ctx, method, path, bytes.NewReader(req), http.Header{"Content-Type": []string{"application/json"}})
+	res, err := r.doRequest(ctx, method, path, bytes.NewReader(req), http.Header{"Content-Type": []string{"application/json"}})
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func request[T any](r *Rest, ctx context.Context, method string, path Path, data
 	return resp, out, nil
 }
 
-func (r *Rest) upload(ctx context.Context, method string, path Path, reader io.Reader, header http.Header) (*response, error) {
+func (r *Rest) doRequest(ctx context.Context, method string, path Path, reader io.Reader, header http.Header) (*response, error) {
 	resp, err := r.do(ctx, method, path, reader, header)
 	if err != nil {
 		return nil, err

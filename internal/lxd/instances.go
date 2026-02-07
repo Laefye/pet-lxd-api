@@ -269,6 +269,6 @@ func (i *Instance) PutFile(ctx context.Context, path string, content io.Reader, 
 		httpHeader.Set("X-LXD-uid", strconv.Itoa(header.Uid))
 		httpHeader.Set("X-LXD-mode", strconv.Itoa(header.Mode))
 	}
-	_, err := i.rest.upload(ctx, http.MethodPost, i.path.Join("files").withQuery("path", path), content, httpHeader)
+	_, err := i.rest.doRequest(ctx, http.MethodPost, i.path.Join("files").withQuery("path", path), content, httpHeader)
 	return err
 }
