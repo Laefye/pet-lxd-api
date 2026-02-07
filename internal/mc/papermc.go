@@ -58,6 +58,8 @@ func (api *PaperMCApi) requestBuilds(ctx context.Context, project string, versio
 	return api.Client.Do(request)
 }
 
+const PaperProject = "paper"
+
 func (api *PaperMCApi) GetBuilds(ctx context.Context, project string, version string) ([]*PaperMCBuild, error) {
 	resp, err := api.requestBuilds(ctx, project, version)
 	if err != nil {
