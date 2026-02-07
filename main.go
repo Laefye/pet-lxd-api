@@ -53,13 +53,35 @@ func main() {
 		},
 	)
 
-	instance, err := api.Instance(context.Background(), "wow")
+	network, err := api.Network("lxdbr0")
 	if err != nil {
-		panic("Could not get instance: " + err.Error())
+		panic("Could not get network: " + err.Error())
 	}
-	state, err := instance.GetState(context.Background())
+	adress, err := network.ForwardAddress("172.28.218.207")
 	if err != nil {
-		panic("Could not get instance state: " + err.Error())
+		panic("Could not get forward addresses: " + err.Error())
 	}
-	fmt.Printf("Instance status: %+v\n", state)
+	info, err := adress.Get(context.Background())
+	if err != nil {
+		panic("Could not get forward address info: " + err.Error())
+	}
+	fmt.Printf("Forward addresses: %+v\n", info)
+	err = adress.Update(context.Background(), lxd.PutForwardAddressRequest{
+		Ports: []lxd.ForwardPort{
+			{Protocol: "tcp", TargetPort: "25565", ListenPort: "25565", TargetAddr: "10.28.28.10"},
+		},
+	})
+	if err != nil {
+		panic("Could not update forward address: " + err.Error())
+	}
+
+	// instance, err := api.Instance(context.Background(), "wow")
+	// if err != nil {
+	// 	panic("Could not get instance: " + err.Error())
+	// }
+	// state, err := instance.GetState(context.Background())
+	// if err != nil {
+	// 	panic("Could not get instance state: " + err.Error())
+	// }
+	// fmt.Printf("Instance status: %+v\n", state)
 }

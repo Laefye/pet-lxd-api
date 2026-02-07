@@ -121,7 +121,7 @@ func (r *Rest) CreateInstance(ctx context.Context, req InstanceCreationRequest) 
 	return &Instance{rest: r, path: *instancePath}, nil
 }
 
-func (r *Rest) Instance(ctx context.Context, name string) (*Instance, error) {
+func (r *Rest) Instance(name string) (*Instance, error) {
 	path := r.base.join("instances").join(name)
 	return &Instance{rest: r, path: path}, nil
 }
