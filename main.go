@@ -8,6 +8,7 @@ import (
 	"mcvds/internal/lxd"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -53,17 +54,29 @@ func main() {
 		},
 	)
 
-	instance, err := api.Instance(context.Background(), "actual-mongrele")
+	instance, err := api.CreateInstance(context.Background(), lxd.InstanceCreationRequest{
+		Source: lxd.InstanceSource{
+			Type:  lxd.SourceTypeImage,
+			Alias: "leafos",
+		},
+		Start: true,
+		Type:  lxd.InstanceTypeVM,
+	})
 	if err != nil {
 		panic("Could not get instance: " + err.Error())
 	}
-	state, err := instance.GetState(context.Background())
-	if err != nil {
-		panic("Could not get instance state: " + err.Error())
+	for {
+		state, err := instance.GetState(context.Background())
+		if err != nil {
+			panic("Could not get instance state: " + err.Error())
+		}
+		if state.Status != "Running" || state.Processes > 0 {
+			break
+		}
+		time.Sleep(1 * time.Second)
 	}
-	fmt.Printf("Instance state: %s, processes: %d\n", state.Status, state.Processes)
 	websockets, err := instance.Exec(context.Background(), lxd.ExecRequest{
-		Command:   []string{"ls", "/"},
+		Command:   []string{"wget", "-O-", "http://ifconfig.co/ip"},
 		WaitForWS: true,
 	})
 	if err != nil {

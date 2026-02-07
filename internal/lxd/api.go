@@ -17,15 +17,25 @@ type Rest struct {
 	Host   string
 }
 
-func NewRest(host string, client *http.Client, dialer *websocket.Dialer) *Rest {
+var defaultBase = Path{
+	Segments: []string{"1.0"},
+}
+
+func newRest(host string, client *http.Client, dialer *websocket.Dialer, base Path) *Rest {
 	return &Rest{
 		Client: client,
 		Dialer: dialer,
+		base:   base,
 		Host:   host,
-		base: Path{
-			Segments: []string{"1.0"},
-		},
 	}
+}
+
+func NewRest(host string, client *http.Client, dialer *websocket.Dialer) *Rest {
+	return newRest(host, client, dialer, defaultBase)
+}
+
+func NewRestWithProject(host string, client *http.Client, dialer *websocket.Dialer, project string) *Rest {
+	return newRest(host, client, dialer, defaultBase.withQuery("project", project))
 }
 
 type response struct {

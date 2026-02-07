@@ -5,6 +5,12 @@ import (
 	"net/http"
 )
 
+const (
+	InstanceTypeContainer = "container"
+	InstanceTypeVM        = "virtual-machine"
+	SourceTypeImage       = "image"
+)
+
 type InstanceSource struct {
 	Alias string `json:"alias"`
 	Type  string `json:"type"`
@@ -50,11 +56,6 @@ type stateMetadata struct {
 	Processes int                    `json:"processes"`
 	Network   map[string]networkInfo `json:"network"`
 }
-
-const (
-	InstanceTypeContainer = "container"
-	InstanceTypeVM        = "virtual-machine"
-)
 
 type device struct {
 	Type   string `json:"type"`
