@@ -2,7 +2,10 @@ package lxd
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
+	"strconv"
 )
 
 const (
@@ -157,4 +160,115 @@ func (i *Instance) Exec(ctx context.Context, req ExecRequest) (WebSockets, error
 		streams[name] = stream
 	}
 	return streams, nil
+}
+
+type FileHeader struct {
+	Gid  int
+	Uid  int
+	Mode int
+}
+
+type FileInfo struct {
+	files  *[]string
+	reader io.ReadCloser
+	header FileHeader
+}
+
+func (f *FileInfo) IsDir() bool {
+	return f.files != nil
+}
+
+func (f *FileInfo) FileList() []string {
+	if f.files == nil {
+		return nil
+	}
+	return *f.files
+}
+
+func (f *FileInfo) GetReader() io.Reader {
+	return f.reader
+}
+
+func (f *FileInfo) Close() error {
+	if f.reader != nil {
+		return f.reader.Close()
+	}
+	return nil
+}
+
+func (f *FileInfo) Header() FileHeader {
+	return f.header
+}
+
+var ErrInvalidFileInfo = errors.New("invalid file info")
+
+func parseFileHeader(header http.Header) (*FileHeader, error) {
+	gid, err := strconv.Atoi(header.Get("X-LXD-gid"))
+	if err != nil {
+		return nil, err
+	}
+	uid, err := strconv.Atoi(header.Get("X-LXD-uid"))
+	if err != nil {
+		return nil, err
+	}
+	mode, err := strconv.Atoi(header.Get("X-LXD-mode"))
+	if err != nil {
+		return nil, err
+	}
+	return &FileHeader{
+		Gid:  gid,
+		Uid:  uid,
+		Mode: mode,
+	}, nil
+}
+
+func (i *Instance) GetFile(ctx context.Context, path string) (*FileInfo, error) {
+	res, err := i.rest.do(ctx, http.MethodGet, i.path.Join("files").withQuery("path", path), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	switch res.Header.Get("Content-Type") {
+	case "application/json":
+		defer res.Body.Close()
+		r, err := parseResponse(res.Body)
+		if err != nil {
+			return nil, err
+		}
+		files, err := parseMetadata[[]string](r)
+		if err != nil {
+			return nil, err
+		}
+		header, err := parseFileHeader(res.Header)
+		if err != nil {
+			return nil, err
+		}
+		return &FileInfo{
+			files:  files,
+			reader: nil,
+			header: *header,
+		}, nil
+	case "application/octet-stream":
+		header, err := parseFileHeader(res.Header)
+		if err != nil {
+			return nil, err
+		}
+		return &FileInfo{
+			files:  nil,
+			reader: res.Body,
+			header: *header,
+		}, nil
+	}
+	return nil, ErrInvalidFileInfo
+}
+
+func (i *Instance) PutFile(ctx context.Context, path string, content io.Reader, header *FileHeader) error {
+	httpHeader := http.Header{}
+	httpHeader.Set("Content-Type", "application/octet-stream")
+	if header != nil {
+		httpHeader.Set("X-LXD-gid", strconv.Itoa(header.Gid))
+		httpHeader.Set("X-LXD-uid", strconv.Itoa(header.Uid))
+		httpHeader.Set("X-LXD-mode", strconv.Itoa(header.Mode))
+	}
+	_, err := i.rest.upload(ctx, http.MethodPost, i.path.Join("files").withQuery("path", path), content, httpHeader)
+	return err
 }

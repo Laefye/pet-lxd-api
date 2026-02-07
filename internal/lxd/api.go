@@ -105,18 +105,11 @@ func (r *Rest) request(ctx context.Context, method string, path Path, data inter
 	if err != nil {
 		return nil, err
 	}
-	resp, err := r.do(ctx, method, path, bytes.NewReader(req), http.Header{
-		"Content-Type": []string{"application/json"},
-	})
+	res, err := r.upload(ctx, method, path, bytes.NewReader(req), http.Header{"Content-Type": []string{"application/json"}})
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	out, err := parseResponse(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
+	return res, nil
 }
 
 func request[T any](r *Rest, ctx context.Context, method string, path Path, data interface{}) (*response, *T, error) {
@@ -131,8 +124,8 @@ func request[T any](r *Rest, ctx context.Context, method string, path Path, data
 	return resp, out, nil
 }
 
-func (r *Rest) upload(ctx context.Context, path Path, reader io.Reader, header http.Header) (*response, error) {
-	resp, err := r.do(ctx, http.MethodPost, path, reader, header)
+func (r *Rest) upload(ctx context.Context, method string, path Path, reader io.Reader, header http.Header) (*response, error) {
+	resp, err := r.do(ctx, method, path, reader, header)
 	if err != nil {
 		return nil, err
 	}

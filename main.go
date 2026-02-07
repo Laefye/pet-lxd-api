@@ -1,14 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
 	"mcvds/internal/lxd"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -54,43 +56,44 @@ func main() {
 		},
 	)
 
-	instance, err := api.CreateInstance(context.Background(), lxd.InstanceCreationRequest{
-		Source: lxd.InstanceSource{
-			Type:  lxd.SourceTypeImage,
-			Alias: "leafos",
-		},
-		Start: true,
-		Type:  lxd.InstanceTypeVM,
-	})
+	instance, err := api.Instance(context.Background(), "wow")
 	if err != nil {
 		panic("Could not get instance: " + err.Error())
 	}
-	for {
-		state, err := instance.GetState(context.Background())
-		if err != nil {
-			panic("Could not get instance state: " + err.Error())
-		}
-		if state.Status != "Running" || state.Processes > 0 {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	websockets, err := instance.Exec(context.Background(), lxd.ExecRequest{
-		Command:   []string{"wget", "-O-", "http://ifconfig.co/ip"},
-		WaitForWS: true,
-	})
+	state, err := instance.GetState(context.Background())
 	if err != nil {
-		panic("Could not execute command: " + err.Error())
+		panic("Could not get instance state: " + err.Error())
 	}
-	defer websockets.Close()
-	for {
-		message, err := websockets["1"].ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				panic("Websocket closed unexpectedly: " + err.Error())
-			}
-			break
+	println("Instance status:", state.Status)
+
+	file, err := instance.GetFile(context.Background(), "/home/owo")
+	if err != nil {
+		var apiErr *lxd.LxdApiError
+		if errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound {
+			fmt.Println("File not found")
+			return
 		}
-		fmt.Printf("Received message: %s\n", string(message))
+		panic("Could not get instance files: " + err.Error())
 	}
+	defer file.Close()
+	fmt.Printf("File info - %+v\n", file.Header())
+	if file.IsDir() {
+		fmt.Println("Instance files:")
+		for _, f := range file.FileList() {
+			fmt.Println(" -", f)
+		}
+	} else {
+		content, err := io.ReadAll(file.GetReader())
+		if err != nil {
+			panic("Could not read file content: " + err.Error())
+		}
+		fmt.Println("File content:\n", string(content))
+	}
+
+	testFile := bytes.NewBufferString("Hello World\n")
+	err = instance.PutFile(context.Background(), "/home/owo/test.txt", testFile, &lxd.FileHeader{Uid: 1000, Gid: 1000, Mode: 0644})
+	if err != nil {
+		panic("Could not put file: " + err.Error())
+	}
+
 }
