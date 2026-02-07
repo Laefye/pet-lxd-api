@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"mcvds/internal/lxd"
-	"mcvds/internal/mc"
 	"net/http"
 	"os"
 
@@ -61,27 +61,5 @@ func main() {
 	if err != nil {
 		panic("Could not get instance state: " + err.Error())
 	}
-	println("Instance status:", state.Status)
-
-	mcapi := &mc.PaperMCApi{
-		BaseUrl: mc.PaperMCBaseUrl,
-		Client:  http.DefaultClient,
-	}
-
-	builds, err := mcapi.GetBuilds(context.Background(), mc.PaperProject, "1.20.4")
-	if err != nil || len(builds) == 0 {
-		panic("Could not get PaperMC builds: " + err.Error())
-	}
-
-	res, err := http.Get(builds[0].Downloads["server:default"].URL)
-	if err != nil {
-		panic("Could not download PaperMC server jar: " + err.Error())
-	}
-	defer res.Body.Close()
-
-	instance.PutFile(context.Background(), "/root/paper.jar", res.Body, &lxd.FileHeader{
-		Mode: 0644,
-		Uid:  0,
-		Gid:  0,
-	})
+	fmt.Printf("Instance status: %+v\n", state)
 }

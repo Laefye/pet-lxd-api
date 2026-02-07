@@ -42,22 +42,22 @@ type resourcedMetadata struct {
 	Resources resources `json:"resources"`
 }
 
-type addressInfo struct {
+type AddressInfo struct {
 	Family  string `json:"family"`
 	Address string `json:"address"`
 	Netmask string `json:"netmask"`
 	Scope   string `json:"scope"`
 }
 
-type networkInfo struct {
-	Addresses []addressInfo `json:"addresses"`
+type NetworkInfo struct {
+	Addresses []AddressInfo `json:"addresses"`
 }
 
 type stateMetadata struct {
 	baseMetadata
 	Status    string                 `json:"status"`
 	Processes int                    `json:"processes"`
-	Network   map[string]networkInfo `json:"network"`
+	Network   map[string]NetworkInfo `json:"network"`
 }
 
 type device struct {
@@ -129,6 +129,7 @@ func (r *Rest) Instance(ctx context.Context, name string) (*Instance, error) {
 type State struct {
 	Status    string
 	Processes int
+	Network   map[string]NetworkInfo
 }
 
 func (i *Instance) GetState(ctx context.Context) (*State, error) {
@@ -139,6 +140,7 @@ func (i *Instance) GetState(ctx context.Context) (*State, error) {
 	return &State{
 		Status:    metadata.Status,
 		Processes: metadata.Processes,
+		Network:   metadata.Network,
 	}, nil
 }
 
