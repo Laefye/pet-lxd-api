@@ -1,5 +1,7 @@
 package lxd
 
+import "context"
+
 const (
 	ProtocolTCP = "tcp"
 	ProtocolUDP = "udp"
@@ -15,4 +17,14 @@ type ForwardPort struct {
 type ForwardAddress struct {
 	ListenAddress string        `json:"listen_address"`
 	Ports         []ForwardPort `json:"ports"`
+}
+
+type Network struct {
+	rest *Rest
+	path resourcePath
+}
+
+func (r *Rest) Network(ctx context.Context, name string) (*Network, error) {
+	path := r.base.join("networks").withoutQuery("project").join(name)
+	return &Network{rest: r, path: path}, nil
 }

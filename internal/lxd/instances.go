@@ -98,11 +98,11 @@ type InstanceCreateArgs struct {
 
 type Instance struct {
 	rest *Rest
-	path Path
+	path resourcePath
 }
 
 func (r *Rest) CreateInstance(ctx context.Context, req InstanceCreationRequest) (*Instance, error) {
-	res, _, err := request[resourcedMetadata](r, ctx, http.MethodPost, r.base.Join("instances"), req)
+	res, _, err := request[resourcedMetadata](r, ctx, http.MethodPost, r.base.join("instances"), req)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func (r *Rest) CreateInstance(ctx context.Context, req InstanceCreationRequest) 
 	if err != nil {
 		return nil, err
 	}
-	res, metadata, err := request[resourcedMetadata](r, ctx, http.MethodGet, operationPath.Join("wait"), nil)
+	res, metadata, err := request[resourcedMetadata](r, ctx, http.MethodGet, operationPath.join("wait"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (r *Rest) CreateInstance(ctx context.Context, req InstanceCreationRequest) 
 }
 
 func (r *Rest) Instance(ctx context.Context, name string) (*Instance, error) {
-	path := r.base.Join("instances").Join(name)
+	path := r.base.join("instances").join(name)
 	return &Instance{rest: r, path: path}, nil
 }
 
@@ -133,7 +133,7 @@ type State struct {
 }
 
 func (i *Instance) GetState(ctx context.Context) (*State, error) {
-	_, metadata, err := request[stateMetadata](i.rest, ctx, http.MethodGet, i.path.Join("state"), nil)
+	_, metadata, err := request[stateMetadata](i.rest, ctx, http.MethodGet, i.path.join("state"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (i *Instance) GetState(ctx context.Context) (*State, error) {
 }
 
 func (i *Instance) Exec(ctx context.Context, req ExecRequest) (WebSockets, error) {
-	res, metadata, err := request[execMetadata](i.rest, ctx, http.MethodPost, i.path.Join("exec"), req)
+	res, metadata, err := request[execMetadata](i.rest, ctx, http.MethodPost, i.path.join("exec"), req)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (i *Instance) Exec(ctx context.Context, req ExecRequest) (WebSockets, error
 	}
 	streams := make(WebSockets)
 	for name, path := range metadata.Metadata.Fds {
-		stream, err := i.rest.webSocket(ctx, websocketPath.Join("websocket").withQuery("secret", path))
+		stream, err := i.rest.webSocket(ctx, websocketPath.join("websocket").withQuery("secret", path))
 		if err != nil {
 			return nil, err
 		}
@@ -225,7 +225,7 @@ func parseFileHeader(header http.Header) (*FileHeader, error) {
 }
 
 func (i *Instance) GetFile(ctx context.Context, path string) (*FileInfo, error) {
-	res, err := i.rest.do(ctx, http.MethodGet, i.path.Join("files").withQuery("path", path), nil, nil)
+	res, err := i.rest.do(ctx, http.MethodGet, i.path.join("files").withQuery("path", path), nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +271,6 @@ func (i *Instance) PutFile(ctx context.Context, path string, content io.Reader, 
 		httpHeader.Set("X-LXD-uid", strconv.Itoa(header.Uid))
 		httpHeader.Set("X-LXD-mode", strconv.Itoa(header.Mode))
 	}
-	_, err := i.rest.doRequest(ctx, http.MethodPost, i.path.Join("files").withQuery("path", path), content, httpHeader)
+	_, err := i.rest.doRequest(ctx, http.MethodPost, i.path.join("files").withQuery("path", path), content, httpHeader)
 	return err
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-type Path struct {
+type resourcePath struct {
 	Segments []string
 	Query    url.Values
 }
@@ -18,7 +18,7 @@ func escapeSegments(segments []string) []string {
 	return escapedSegments
 }
 
-func (p Path) String() string {
+func (p resourcePath) String() string {
 	path := ""
 	escapedSegments := escapeSegments(p.Segments)
 	if len(escapedSegments) > 0 {
@@ -30,14 +30,14 @@ func (p Path) String() string {
 	return path
 }
 
-func (p Path) Join(segment string) Path {
-	return Path{
+func (p resourcePath) join(segment string) resourcePath {
+	return resourcePath{
 		Segments: append(p.Segments, segment),
 		Query:    p.Query,
 	}
 }
 
-func (p Path) withQuery(key, value string) Path {
+func (p resourcePath) withQuery(key, value string) resourcePath {
 	if p.Query == nil {
 		p.Query = url.Values{}
 	}
@@ -45,8 +45,12 @@ func (p Path) withQuery(key, value string) Path {
 	return p
 }
 
-func (p Path) Last(i int) string {
-	return p.Segments[len(p.Segments)-i-1]
+func (p resourcePath) withoutQuery(key string) resourcePath {
+	if p.Query == nil {
+		return p
+	}
+	p.Query.Del(key)
+	return p
 }
 
 func unescapeSegments(path string) ([]string, error) {
@@ -62,7 +66,7 @@ func unescapeSegments(path string) ([]string, error) {
 	return segments, nil
 }
 
-func ParsePath(rawPath string) (*Path, error) {
+func ParsePath(rawPath string) (*resourcePath, error) {
 	u, err := url.Parse(rawPath)
 	if err != nil {
 		return nil, err
@@ -72,13 +76,13 @@ func ParsePath(rawPath string) (*Path, error) {
 		return nil, err
 	}
 	query := url.Values(u.Query())
-	return &Path{
+	return &resourcePath{
 		Segments: segments,
 		Query:    query,
 	}, nil
 }
 
-func MustParsePath(rawPath string) Path {
+func MustParsePath(rawPath string) resourcePath {
 	path, err := ParsePath(rawPath)
 	if err != nil {
 		panic(err)

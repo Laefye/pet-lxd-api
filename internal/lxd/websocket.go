@@ -13,11 +13,11 @@ type WebSocketStream struct {
 	buffer []byte
 }
 
-func (r *Rest) wssPath(path Path) string {
+func (r *Rest) wssPath(path resourcePath) string {
 	return "wss://" + string(r.Host) + path.String()
 }
 
-func (r *Rest) webSocket(ctx context.Context, path Path) (*WebSocketStream, error) {
+func (r *Rest) webSocket(ctx context.Context, path resourcePath) (*WebSocketStream, error) {
 	wsURL := r.wssPath(path)
 	fmt.Println(wsURL)
 	conn, _, err := r.Dialer.DialContext(ctx, wsURL, nil)

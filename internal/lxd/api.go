@@ -13,15 +13,15 @@ import (
 type Rest struct {
 	Client *http.Client
 	Dialer *websocket.Dialer
-	base   Path
+	base   resourcePath
 	Host   string
 }
 
-var defaultBase = Path{
+var defaultBase = resourcePath{
 	Segments: []string{"1.0"},
 }
 
-func newRest(host string, client *http.Client, dialer *websocket.Dialer, base Path) *Rest {
+func newRest(host string, client *http.Client, dialer *websocket.Dialer, base resourcePath) *Rest {
 	return &Rest{
 		Client: client,
 		Dialer: dialer,
@@ -57,11 +57,11 @@ func (e *LxdApiError) Error() string {
 	return e.Message
 }
 
-func (r *Rest) httpsPath(path Path) string {
+func (r *Rest) httpsPath(path resourcePath) string {
 	return "https://" + string(r.Host) + path.String()
 }
 
-func (r *Rest) do(ctx context.Context, method string, path Path, data io.Reader, header http.Header) (*http.Response, error) {
+func (r *Rest) do(ctx context.Context, method string, path resourcePath, data io.Reader, header http.Header) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, r.httpsPath(path), data)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func parseMetadata[T any](r *response) (*T, error) {
 	return &out, nil
 }
 
-func (r *Rest) request(ctx context.Context, method string, path Path, data interface{}) (*response, error) {
+func (r *Rest) request(ctx context.Context, method string, path resourcePath, data interface{}) (*response, error) {
 	req, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (r *Rest) request(ctx context.Context, method string, path Path, data inter
 	return res, nil
 }
 
-func request[T any](r *Rest, ctx context.Context, method string, path Path, data interface{}) (*response, *T, error) {
+func request[T any](r *Rest, ctx context.Context, method string, path resourcePath, data interface{}) (*response, *T, error) {
 	resp, err := r.request(ctx, method, path, data)
 	if err != nil {
 		return nil, nil, err
@@ -124,7 +124,7 @@ func request[T any](r *Rest, ctx context.Context, method string, path Path, data
 	return resp, out, nil
 }
 
-func (r *Rest) doRequest(ctx context.Context, method string, path Path, reader io.Reader, header http.Header) (*response, error) {
+func (r *Rest) doRequest(ctx context.Context, method string, path resourcePath, reader io.Reader, header http.Header) (*response, error) {
 	resp, err := r.do(ctx, method, path, reader, header)
 	if err != nil {
 		return nil, err
