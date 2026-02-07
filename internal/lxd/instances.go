@@ -169,7 +169,7 @@ type FileHeader struct {
 }
 
 type FileInfo struct {
-	files  *[]string
+	files  []string
 	reader io.ReadCloser
 	header FileHeader
 }
@@ -182,7 +182,7 @@ func (f *FileInfo) FileList() []string {
 	if f.files == nil {
 		return nil
 	}
-	return *f.files
+	return f.files
 }
 
 func (f *FileInfo) GetReader() io.Reader {
@@ -243,7 +243,7 @@ func (i *Instance) GetFile(ctx context.Context, path string) (*FileInfo, error) 
 			return nil, err
 		}
 		return &FileInfo{
-			files:  files,
+			files:  *files,
 			reader: nil,
 			header: *header,
 		}, nil
